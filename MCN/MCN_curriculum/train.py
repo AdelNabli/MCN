@@ -287,7 +287,8 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
             # reset memory loss
             memory_loss = [100] * 100
-
+    # Saves model
+    save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
     writer.close()
 
     return (value_net, targets_experts)
