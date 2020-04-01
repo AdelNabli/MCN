@@ -14,5 +14,6 @@ setup(
         "torch_geometric",
         "tqdm",
         "tensorboardX",
+        "cplex",
     ],
 )
