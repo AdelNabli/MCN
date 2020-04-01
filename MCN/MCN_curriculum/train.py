@@ -139,7 +139,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
     # Initialize the loss memory:
-    memory_loss = [100] * 100
+    memory_loss = [100*(tolerance + 1)] * 100
 
     print("==========================================================================")
     print("Beginning training... \n")
@@ -286,7 +286,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             # Saves model
             save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
             # reset memory loss
-            memory_loss = [100] * 100
+            memory_loss = [100*(tolerance + 1)] * 100
     # Saves model
     save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
     writer.close()
