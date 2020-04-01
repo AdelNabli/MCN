@@ -388,6 +388,11 @@ class TargetExperts(object):
                             size_connected=size_connected,
                         )
                     )
+                    # update the loss in memory
+                    # usefull in the case where the target nets where loaded
+                    # at the beginning of the training instead of trained
+                    self.Dataset[id_slot].loss = loss_target
+                    self.losses_validation_sets[id_slot] = loss_target
                     update_Budget_target = False
                 # if there is no expert to compete with the value net
                 else:
