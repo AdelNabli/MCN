@@ -895,10 +895,9 @@ def update_training_memory(memory, memory_episode, actions, value):
     return memory
 
 
-def save_models(date_str, dict_args, value_net, optimizer, E, targets_experts):
+def save_models(date_str, dict_args, value_net, optimizer, count, targets_experts):
 
-    """Saves the models and the hyperparameters at the end of the training
-    inside a new folder.
+    """Saves the models and the hyperparameters
 
     Parameters:
     ----------
@@ -908,8 +907,8 @@ def save_models(date_str, dict_args, value_net, optimizer, E, targets_experts):
                countains the hyperparameters
     value_net: neural network (pytorch module)
     optimizer: torch optimizer
-    E: int,
-       the total number of episodes
+    count: int,
+           the number of steps
     targets_experts: TargetExperts object,
                      countains the list of experts"""
 
@@ -923,15 +922,16 @@ def save_models(date_str, dict_args, value_net, optimizer, E, targets_experts):
     if not os.path.exists(path):
         os.mkdir(path)
     # inside this directory, saves the hyperparameters
-    # used in a txt file
-    f = open(path + "/hyperparameters.txt", "w")
-    for key, values in dict_args.items():
-        f.write(key + ": " + str(values) + "\n")
-    f.close()
+    # used in a txt file if it doesn't already exist
+    if not os.path.exists(path + "/hyperparameters.txt"):
+        f = open(path + "/hyperparameters.txt", "w")
+        for key, values in dict_args.items():
+            f.write(key + ": " + str(values) + "\n")
+        f.close()
     # saves the value net
     torch.save(
         {
-            "epoch": E,
+            "epoch": count,
             "model_state_dict": value_net.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         },
@@ -945,6 +945,6 @@ def save_models(date_str, dict_args, value_net, optimizer, E, targets_experts):
     count = 0
     for target_net in targets_experts.list_target_nets:
         if target_net is not None:
-            name = path + "/expert_" + str(count) + ".tar"
-            torch.save({"model_state_dict": target_net.state_dict()}, name)
+            name = path + "/expert_" + str(count) + ".pt"
+            torch.save(target_net, name)
             count += 1
