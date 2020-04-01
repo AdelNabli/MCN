@@ -24,7 +24,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, tolerance,
                     n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, targets_experts=None):
     """Training procedure. Follows the evolution of the training using tensorboard.
-    Stores the neural network at the end.
+    Stores the neural networks each time a new task is learnt.
 
     Parameters:
     ----------
@@ -157,6 +157,8 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         )
         # Initialize the environment
         env = Environment(G_nx, Omega, Phi, Lambda, J=I)
+        # Get the initial player
+        initial_player = env.player
         # Initialize the memory of the episode and the sets of actions
         memory_episode = []
         # one list of action for each player
@@ -262,7 +264,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                 count += 1
 
         # update the memory
-        memory = update_training_memory(memory, memory_episode, actions_episode, value)
+        memory = update_training_memory(memory, memory_episode, actions_episode, value, initial_player)
 
         if (
                 sum(memory_loss) / 100 < tolerance

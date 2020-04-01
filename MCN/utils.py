@@ -772,7 +772,7 @@ def sample_memory_validation(memory, Transition, batch_size, multiple_targets=Fa
         )
 
 
-def update_training_memory(memory, memory_episode, actions, value):
+def update_training_memory(memory, memory_episode, actions, value, initial_player):
     """Backtracks the end reward obtained using the experts to
     take the actions at each middle step appearing during the
     unrolling of the episode and push all of these experiences
@@ -792,6 +792,9 @@ def update_training_memory(memory, memory_episode, actions, value):
              during the episode
     value: float,
            end reward obtained at the end of the episode
+    initial_player: int,
+                    the player we are currently focused on in the
+                    learning procedure
 
     Returns:
     -------
@@ -840,19 +843,22 @@ def update_training_memory(memory, memory_episode, actions, value):
                 # update the id_loss such that the loss for all the actions
                 # is the one (value_net - target)^2
                 id_loss[actions_player] = 4
-                memory.push(
-                    list_G_torch,
-                    Omega_tensor,
-                    Phi_tensor,
-                    Lambda_tensor,
-                    J_tensor,
-                    saved_tensor,
-                    infected_tensor,
-                    size_connected_tensor,
-                    id_loss,
-                    targets,
-                    next_n_free,
-                )
+                # if it is the turn of the player we are currently focused on,
+                # we push the transition to memory
+                if player == initial_player:
+                    memory.push(
+                        list_G_torch,
+                        Omega_tensor,
+                        Phi_tensor,
+                        Lambda_tensor,
+                        J_tensor,
+                        saved_tensor,
+                        infected_tensor,
+                        size_connected_tensor,
+                        id_loss,
+                        targets,
+                        next_n_free,
+                    )
                 actions_player.append(action)
                 # get the variables from the memory of the episode
                 (
@@ -876,7 +882,8 @@ def update_training_memory(memory, memory_episode, actions, value):
             count += 1
 
         # if the list of actions is non empty
-        if len(actions_player) > 0:
+        # and if it is the turn of the player we want
+        if len(actions_player) > 0 and player == initial_player:
             # we push the last modification to the training memory
             memory.push(
                 list_G_torch,
