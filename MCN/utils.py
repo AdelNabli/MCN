@@ -948,3 +948,5 @@ def save_models(date_str, dict_args, value_net, optimizer, E, targets_experts):
             name = path + "/expert_" + str(count) + ".tar"
             torch.save({"model_state_dict": target_net.state_dict()}, name)
             count += 1
+
+print('truc')
