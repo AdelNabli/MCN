@@ -13,9 +13,9 @@ Then, run the following python script:
 from MCN.MCN_curriculum.train import train_value_net
 
 # Train the neural network
-train_value_net(batch_size=20, memory_size=256, lr=1e-3, betas=(0.8,0.9), E=100000,
-                target_update=100, h1=128, h2=64, n_heads=3, alpha=0.1, tolerance=0.2,
-                n_free_min=4, n_free_max=10, Omega_max=2, Phi_max=2, Lambda_max=2)
+value_net, experts = train_value_net(batch_size=20, memory_size=256, lr=1e-3, betas=(0.8,0.9), E=100000,
+                                     target_update=100, h1=128, h2=64, n_heads=3, alpha=0.1, tolerance=0.2,
+                                     n_free_min=4, n_free_max=10, Omega_max=2, Phi_max=2, Lambda_max=2)
 ```
 
 ## Requirements
