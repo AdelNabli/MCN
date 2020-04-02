@@ -170,10 +170,30 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
             Phi_attacked = 0
     # else, we are not in the training procedure
     else:
-        Omega = np.random.randint(0, Omega_max + 1)
-        Phi = np.random.randint(1, Phi_max + 1)
-        Lambda = np.random.randint(0, Lambda_max + 1)
-        Phi_attacked = 0
+        # sample a random player
+        player = np.random.randint(0,3)
+        # if vaccinator
+        if player == 0:
+            # means Omega > 0
+            Omega = np.random.randint(1, Omega_max + 1)
+            Phi = np.random.randint(1, Phi_max + 1)
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            # no nodes pre-attacked
+            Phi_attacked = 0
+        # if attacker
+        elif player == 1:
+            Omega = 0
+            Phi = np.random.randint(1, Phi_max + 1)
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            # no nodes pre-attacked
+            Phi_attacked = 0
+        # if protector
+        elif player == 2:
+            Omega = 0
+            Phi = 0
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            # some nodes are pre-attacked
+            Phi_attacked = np.random.randint(1, Phi_max + 1)
 
     # random number of nodes
     n_free = random.randrange(n_free_min, n_free_max)
