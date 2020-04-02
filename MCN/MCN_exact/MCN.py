@@ -9,7 +9,7 @@ def MCN(graph, Omega, Phi, Lambda):
     Parameters:
     ----------
     graph: networkx Digraph,
-           for every undirected edge (u,v), creates two directed edges (u,v) and (v,u)
+           for every undirected edge (u,v), contains two directed edges (u,v) and (v,u)
     Lambda: int,
             protection budget
     Phi: int,
