@@ -13,6 +13,7 @@ from MCN.utils import (
     get_target_net,
     take_action_deterministic,
     save_models,
+    load_saved_experts,
 )
 from .environment import Environment
 from .value_nn import ValueNet
@@ -22,7 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, tolerance,
-                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, targets_experts=None):
+                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, path_experts=""):
     """Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
 
@@ -64,6 +65,10 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
              maximum value of Phi we want the instances to have
     Lambda_max: int,
                 maximum value of Lambda we want the instances to have
+    path_experts: str (default=""),
+                  path the directory containing saved experts models
+                  if given, begin the training at the first step after
+                  the last trained expert
 
     Returns:
     -------
@@ -120,22 +125,30 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         alpha=alpha,
     ).to(device)
     # Initialize the pool of experts (target nets)
-    if targets_experts is None:
-        targets_experts = TargetExperts(
-            input_dim=5,
-            hidden_dim1=h1,
-            hidden_dim2=h2,
-            n_heads=n_heads,
-            K=n_max,
-            alpha=alpha,
-            n_free_min=n_free_min,
-            n_free_max=n_free_max,
-            Omega_max=Omega_max,
-            Phi_max=Phi_max,
-            Lambda_max=Lambda_max,
-            memory_size=50,
-            tolerance=tolerance,
-        )
+    targets_experts = TargetExperts(
+        input_dim=5,
+        hidden_dim1=h1,
+        hidden_dim2=h2,
+        n_heads=n_heads,
+        K=n_max,
+        alpha=alpha,
+        n_free_min=n_free_min,
+        n_free_max=n_free_max,
+        Omega_max=Omega_max,
+        Phi_max=Phi_max,
+        Lambda_max=Lambda_max,
+        memory_size=50,
+        tolerance=tolerance,
+    )
+    # If pre-trained experts are available
+    if path_experts != "":
+        # load them
+        list_trained_experts = load_saved_experts(path_experts)
+        Budget_trained = len(list_trained_experts)
+        # update the TargetExperts object
+        targets_experts.list_target_nets[:Budget_trained] = list_trained_experts
+        if Budget_trained < targets_experts.n_max:
+            targets_experts.Budget_target = Budget_trained + 1
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
     # Initialize the loss memory:
