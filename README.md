@@ -26,3 +26,4 @@ value_net, experts = train_value_net(batch_size=20, memory_size=256, lr=1e-3, be
 * [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/)
 * [tensorboardX](https://tensorboardx.readthedocs.io/en/latest/index.html)
 * [tqdm](https://tqdm.github.io/)
+* [cplex](https://www.ibm.com/analytics/cplex-optimizer)
