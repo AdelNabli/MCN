@@ -978,15 +978,18 @@ def load_saved_experts(path):
 
     # Initialize the list of experts
     list_experts = []
-    # for everything in the directory
-    for f in os.listdir(path):
-        expert_path = os.path.join(path, f)
-        # if the thing is a file
-        if os.path.isfile(expert_path):
-            # load the model
-            expert = torch.load(expert_path)
-            expert.eval()
-            # append the model to the list
-            list_experts.append(expert)
+    if os.path.isdir(path):
+        # for everything in the directory
+        for f in os.listdir(path):
+            expert_path = os.path.join(path, f)
+            # if the thing is a file
+            if os.path.isfile(expert_path):
+                # load the model
+                expert = torch.load(expert_path)
+                expert.eval()
+                # append the model to the list
+                list_experts.append(expert)
+    else:
+        raise ValueError("no directory found at given path")
 
     return list_experts

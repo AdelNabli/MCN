@@ -31,7 +31,9 @@ def AP(V, E, Phi, Lambda, target):
             "goal" if I is better than the best attack so far
             "opt" if I is the best attack possible
     P: list,
-       list of the ids of the protected nodes """
+       list of the ids of the protected nodes if status ="opt"
+    best: int,
+          nb of saved nodes if status = "opt" """
 
     # Initialization
     S = [list(V)]
@@ -50,12 +52,12 @@ def AP(V, E, Phi, Lambda, target):
             break
 
         if value <= target - 1:
-            return (I, "goal", P)
+            return (I, "goal", P, best)
 
         len_S, new_S, P = solve_defender(I, V, E, Lambda)
 
         if len_S <= target - 1:
-            return (I, "goal", P)
+            return (I, "goal", P, best)
 
         if len_S < best:
 
@@ -64,4 +66,4 @@ def AP(V, E, Phi, Lambda, target):
             I_best = I
 
         S.append(new_S)
-    return (I_best, "opt", P_best)
+    return (I_best, "opt", P_best, best)
