@@ -104,9 +104,10 @@ def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False
     return graph_2
 
 
-def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, Budget_target):
-    r"""Generate a random instance of the MCN problem
-    corresponding to the stage of the training we are in.
+def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, Budget_target=np.nan):
+    r"""Generate a random instance of the MCN problem corresponding
+    to the stage of the training we are in if Budget_target is defined.
+    Else, we generate a random instance of the MCN problem.
     The parameters of the distribution of instances are
     the number of free nodes in the graph (i.e nodes that won't
     be defended nor attacked) and the maximum budget we allow
@@ -143,25 +144,33 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
     Lambda: int,
             the budget allocated to the protector"""
 
-    # if the target net is learning the protection values
-    if Budget_target <= Lambda_max:
-        Omega = 0
-        Phi = 0
-        Lambda = Budget_target
-        # we need to attack some nodes in order
-        # to learn the protection
-        Phi_attacked = np.random.randint(1, Phi_max + 1)
-    # if the target net is learning the attack values
-    elif Budget_target <= Phi_max + Lambda_max:
-        Omega = 0
-        Phi = Budget_target - Lambda_max
-        Lambda = np.random.randint(0, Lambda_max + 1)
-        remaining_attack_budget = Phi_max - Phi
-        Phi_attacked = np.random.randint(0, remaining_attack_budget + 1)
-    # else, the target net is learning the vaccination values
-    elif Budget_target <= Omega_max + Phi_max + Lambda_max:
-        Omega = Budget_target - (Phi_max + Lambda_max)
-        # we oblige that at least one node is attacked
+    # if we generate an instance for the training procedure
+    if Budget_target is not np.nan:
+        # if the target net is learning the protection values
+        if Budget_target <= Lambda_max:
+            Omega = 0
+            Phi = 0
+            Lambda = Budget_target
+            # we need to attack some nodes in order
+            # to learn the protection
+            Phi_attacked = np.random.randint(1, Phi_max + 1)
+        # if the target net is learning the attack values
+        elif Budget_target <= Phi_max + Lambda_max:
+            Omega = 0
+            Phi = Budget_target - Lambda_max
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            remaining_attack_budget = Phi_max - Phi
+            Phi_attacked = np.random.randint(0, remaining_attack_budget + 1)
+        # else, the target net is learning the vaccination values
+        elif Budget_target <= Omega_max + Phi_max + Lambda_max:
+            Omega = Budget_target - (Phi_max + Lambda_max)
+            # we oblige that at least one node is attacked
+            Phi = np.random.randint(1, Phi_max + 1)
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            Phi_attacked = 0
+    # else, we are not in the training procedure
+    else:
+        Omega = np.random.randint(0, Omega_max + 1)
         Phi = np.random.randint(1, Phi_max + 1)
         Lambda = np.random.randint(0, Lambda_max + 1)
         Phi_attacked = 0
@@ -956,3 +965,28 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
             torch.save(target_net, name)
             count += 1
     print("\n Saved models in " + path)
+
+
+def load_saved_experts(path):
+    """Load all the saved experts models from a directory and
+    and returns them as a list of pytorch modules
+
+    Parameters:
+    ----------
+    path: str,
+          path to the directory containing the saved experts"""
+
+    # Initialize the list of experts
+    list_experts = []
+    # for everything in the directory
+    for f in os.listdir(path):
+        expert_path = os.path.join(path, f)
+        # if the thing is a file
+        if os.path.isfile(expert_path):
+            # load the model
+            expert = torch.load(expert_path)
+            expert.eval()
+            # append the model to the list
+            list_experts.append(expert)
+
+    return list_experts
