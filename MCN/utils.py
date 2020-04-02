@@ -925,13 +925,13 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
         os.mkdir("models")
     # inside this models directory
     # creates one specific to the run if it doesn't exist yet
-    path = "models/" + date_str
+    path = os.path.join("models",date_str)
     if not os.path.exists(path):
         os.mkdir(path)
     # inside this directory, saves the hyperparameters
     # used in a txt file if it doesn't already exist
-    if not os.path.exists(path + "/hyperparameters.txt"):
-        f = open(path + "/hyperparameters.txt", "w")
+    if not os.path.exists(os.path.join(path,"hyperparameters.txt")):
+        f = open(os.path.join(path,"hyperparameters.txt"), "w")
         for key, values in dict_args.items():
             f.write(key + ": " + str(values) + "\n")
         f.close()
@@ -942,17 +942,17 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
             "model_state_dict": value_net.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
         },
-        path + "/value_net.tar",
+        os.path.join(path,"value_net.tar"),
     )
     # create a directory for the experts
-    path += "/experts"
+    path = os.path.join(path,"experts")
     if not os.path.exists(path):
         os.mkdir(path)
     # saves every expert in the list of experts
     count = 0
     for target_net in targets_experts.list_target_nets:
         if target_net is not None:
-            name = path + "/expert_" + str(count) + ".pt"
+            name = os.path.join(path,"expert_" + str(count) + ".pt")
             torch.save(target_net, name)
             count += 1
     print("\n Saved models in " + path)
