@@ -1,8 +1,8 @@
-from MCN.MCN_exact.onelvlMIPQ import solve_1lvlMIP_Q
-from MCN.MCN_exact.AttackProtect import AP
+from MCN.MCN_exact.mip import solve_mip
+from MCN.MCN_exact.attack_protect import AP
 
 
-def MCN(graph, Omega, Phi, Lambda):
+def solve_mcn_exact(graph, Omega, Phi, Lambda):
     r"""The MCN algorithm to solve the MCN problem, from the paper
     https://cerc-datascience.polymtl.ca/wp-content/uploads/2017/11/Technical-Report_DS4DM-2017-012.pdf
 
@@ -46,4 +46,4 @@ def MCN(graph, Omega, Phi, Lambda):
 
         elif status == "goal":
             Q.append(I)
-            best, D = solve_1lvlMIP_Q(Q, graph.nodes(), graph.edges(), Lambda, Omega)
+            best, D = solve_mip(Q, graph.nodes(), graph.edges(), Lambda, Omega)

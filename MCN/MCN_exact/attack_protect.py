@@ -1,5 +1,5 @@
-from MCN.MCN_exact.rlxAttackProtect import solve_rlxAP
-from MCN.MCN_exact.Defender import solve_Defender
+from MCN.MCN_exact.rlx_ap import solve_rlxAP
+from MCN.MCN_exact.defender import solve_defender
 
 
 def AP(V, E, Phi, Lambda, target):
@@ -52,7 +52,7 @@ def AP(V, E, Phi, Lambda, target):
         if value <= target - 1:
             return (I, "goal", P)
 
-        len_S, new_S, P = solve_Defender(I, V, E, Lambda)
+        len_S, new_S, P = solve_defender(I, V, E, Lambda)
 
         if len_S <= target - 1:
             return (I, "goal", P)

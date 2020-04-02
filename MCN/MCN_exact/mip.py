@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_1lvlMIP_Q(Q, V, E, Lambda, Omega):
+def solve_mip(Q, V, E, Lambda, Omega):
 
     r"""Find the best vaccination strategy for the subset of attacks Q and with budgets Lambda, Omega.
 

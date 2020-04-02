@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_Defender(I, V, E, Lambda):
+def solve_defender(I, V, E, Lambda):
 
     r"""Solve the Defender problem under attack I with budget Lambda.
 
