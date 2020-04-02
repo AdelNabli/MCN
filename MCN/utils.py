@@ -125,6 +125,7 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
                the maximal vaccination budget
     Phi_max: int,
              the maximal attack budget
+             must be > 0, otherwise there is no MCN problem
     Lambda_max: int,
                 the maximal protection budget
     Budget_target: int,
@@ -171,7 +172,14 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
     # else, we are not in the training procedure
     else:
         # sample a random player
-        player = np.random.randint(0,3)
+        if Omega_max == 0 and Lambda_max == 0:
+            player = 1
+        elif Omega_max == 0:
+            player = np.random.randint(1,3)
+        elif Lambda_max == 0:
+            player = np.random.randint(0,2)
+        elif Omega_max > 0 and Lambda_max > 0:
+            player = np.random.randint(0,3)
         # if vaccinator
         if player == 0:
             # means Omega > 0
@@ -191,7 +199,7 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
         elif player == 2:
             Omega = 0
             Phi = 0
-            Lambda = np.random.randint(0, Lambda_max + 1)
+            Lambda = np.random.randint(1, Lambda_max + 1)
             # some nodes are pre-attacked
             Phi_attacked = np.random.randint(1, Phi_max + 1)
 
