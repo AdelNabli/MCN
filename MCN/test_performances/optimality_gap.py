@@ -62,7 +62,8 @@ def opt_gap(list_exact, list_approx):
 
     vals_exact = np.array(list_exact)
     vals_approx = np.array(list_approx)
-    return np.sum(np.abs(vals_approx - vals_exact)) / np.sum(vals_exact)
+    gap = np.sum(np.abs(vals_approx - vals_exact)) / np.sum(vals_exact)
+    return gap
 
 
 def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts=[], test_set=[],
@@ -102,26 +103,26 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts=[], test
         dataset = test_set[k]
         budget_values_true.append([])
         budget_values_heuristic.append([])
-        opt_gap_budget.append([])
         for instance in dataset:
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
+                                               Omega_max=Omega_max, Phi_max=Phi_max, Lambda_max=Lambda_max,
                                                exact=False, list_experts=list_experts)
             value_exact = instance.value
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)
-            if budget  <= Lambda_max:
+            if budget <= Lambda_max:
                 player_values_true[2].append(value_exact)
                 player_values_heuristic[2].append(value_heuristic)
             elif budget <= Lambda_max + Phi_max:
                 player_values_true[1].append(value_exact)
                 player_values_heuristic[1].append(value_heuristic)
-            elif budget <= Lambda_max + Phi_max + Omega_max:
-                player_values_true[2].append(value_exact)
-                player_values_heuristic[2].append(value_heuristic)
+            elif budget > Lambda_max + Phi_max:
+                player_values_true[0].append(value_exact)
+                player_values_heuristic[0].append(value_heuristic)
         # compute the budget's optimality gap
-        opt_gap_budget[k] = opt_gap(budget_values_true[k], budget_values_heuristic[k])
+        opt_gap_budget.append(opt_gap(budget_values_true[k], budget_values_heuristic[k]))
 
     for player in [0,1,2]:
-        opt_gap_player[player] = opt_gap(player_values_true[player], player_values_heuristic[player])
+        opt_gap_player.append(opt_gap(player_values_true[player], player_values_heuristic[player]))
 
     return(opt_gap_budget, opt_gap_player)
