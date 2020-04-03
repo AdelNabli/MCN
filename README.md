@@ -19,7 +19,7 @@ python -m pip install git+https://github.com/AdelNabli/MCN/
 
 ## Usage
 There are 3 main tasks supported:
-* Train a neural network to produce a pool of 'expert nets' in order to solve the MCN problem
+* Train a neural network to produce a pool of 'expert nets' in order to solve the MCN problem on a distribution of instances
 * Solve an instance of the MCN problem, either using an exact method or heuristically with the trained experts
 * Evaluate the performances of the trained experts on a test set of exactly solved MCN instances
 
