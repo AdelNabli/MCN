@@ -1,7 +1,7 @@
 # MCN
 Learning to solve the Multilevel Critical Node (MCN) Problem
 
-## Usage
+## Setup
 At the moment, it is only possible to train a new neural network on a distribution of instances of the MCN problem.
 First, install the package, e.g as following
 ```
