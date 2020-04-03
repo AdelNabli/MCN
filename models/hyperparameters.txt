@@ -1,0 +1,18 @@
+path_experts: ""
+size_validation_data: 50
+Lambda_max: 2
+Phi_max: 2
+Omega_max: 2
+n_free_max: 10
+n_free_min: 4
+tolerance: 0.2
+alpha: 0.1
+n_heads: 3
+h2: 64
+h1: 128
+target_update: 100
+E: 100000
+betas: (0.8, 0.9)
+lr: 0.0001
+memory_size: 256
+batch_size: 20
