@@ -122,7 +122,3 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts=[], test
         opt_gap_player[player] = opt_gap(player_values_true[player], player_values_heuristic[player])
 
     return(opt_gap_budget, opt_gap_player)
-
-
-
-
