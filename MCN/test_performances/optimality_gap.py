@@ -35,6 +35,7 @@ def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, si
     print("Generates the test set... \n")
 
     # for all budgets
+
     for budget in tqdm(range(1, Budget_max + 1)):
         # initialize the budget's instances list
         test_set_budget = []
@@ -43,13 +44,15 @@ def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, si
             G, J, Omega, Phi, Lambda = generate_random_instance(n_free_min, n_free_max, Omega_max,
                                                                 Phi_max, Lambda_max, Budget_target=budget)
             # solve the instance
-            value, _, _, _ = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
+            value, D, I, P = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
             # save everything in the Instance object
             instance_budget_k = Instance(G, Omega, Phi, Lambda, J, value)
             # pushes it to memory
             test_set_budget.append(instance_budget_k)
         test_set.append(test_set_budget)
 
+    if not os.path.exists(directory_path):
+        os.mkdir(directory_path)
     file_path = os.path.join(directory_path, "test_set.gz")
     # save the test set
     pickle.dump(test_set, open(file_path, "wb"))

@@ -35,7 +35,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
         elif player == 1:
             I, _, P, value = AP(G.nodes(), G.edges(), Phi, Lambda, target=1)
             return (value, [], I, P)
-        elif player == 0:
+        elif player == 2:
             value, _, P = solve_defender(J, G.nodes(), G.edges(), Lambda)
             return (value, [], [], P)
     else:
