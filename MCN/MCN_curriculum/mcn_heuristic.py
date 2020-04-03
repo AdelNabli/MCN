@@ -35,7 +35,7 @@ def original_names_actions_episode(actions_episode, Phi, Lambda):
 
     return (
         all_actions[Lambda + Phi :],
-        all_actions[Lambda:Phi],
+        all_actions[Lambda:Lambda + Phi],
         all_actions[:Lambda],
     )
 

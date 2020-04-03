@@ -15,9 +15,9 @@ from MCN.utils import (
     save_models,
     load_saved_experts,
 )
-from .environment import Environment
-from .value_nn import ValueNet
-from .experts import TargetExperts
+from MCN.MCN_curriculum.environment import Environment
+from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.MCN_curriculum.experts import TargetExperts
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
