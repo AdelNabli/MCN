@@ -43,6 +43,10 @@ def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, si
             # generate a random instance
             G, J, Omega, Phi, Lambda = generate_random_instance(n_free_min, n_free_max, Omega_max,
                                                                 Phi_max, Lambda_max, Budget_target=budget)
+            # if there is an attacker's move,
+            # we empty J
+            if Phi > 0:
+                J = []
             # solve the instance
             value, D, I, P = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
             # save everything in the Instance object
@@ -105,8 +109,9 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts=[], test
         budget_values_heuristic.append([])
         for instance in dataset:
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
-                                               Omega_max=Omega_max, Phi_max=Phi_max, Lambda_max=Lambda_max,
-                                               exact=False, list_experts=list_experts)
+                                               J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
+                                               Lambda_max=Lambda_max, exact=False, list_experts=list_experts)
+            value_heuristic += instance.Omega + instance.Lambda
             value_exact = instance.value
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)
