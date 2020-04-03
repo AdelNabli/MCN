@@ -1,0 +1,1 @@
+from MCN.MCN_curriculum.value_nn import ValueNet
