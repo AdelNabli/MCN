@@ -3,8 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="MCN",
     version=0.1,
-    packages=find_packages(where="MCN"),
-    package_dir={"": "MCN"},
+    packages=find_packages(),
     author="Adel Nabli",
     install_requires=[
         "numpy",
