@@ -66,7 +66,9 @@ def opt_gap(list_exact, list_approx):
 
     vals_exact = np.array(list_exact)
     vals_approx = np.array(list_approx)
-    gap = np.sum(np.abs(vals_approx - vals_exact)) / np.sum(vals_exact)
+    # replace 0s with 1s in the denominator to prevent errors
+    vals_exact_denom = np.where(vals_exact==0,1,vals_exact)
+    gap = np.mean(np.abs(vals_approx - vals_exact)/ vals_exact_denom)
     return gap
 
 
