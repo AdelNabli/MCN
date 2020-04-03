@@ -23,7 +23,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, tolerance,
-                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, path_experts=""):
+                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max,
+                    size_validation_data=50, path_experts=""):
     """Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
 
@@ -137,7 +138,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         Omega_max=Omega_max,
         Phi_max=Phi_max,
         Lambda_max=Lambda_max,
-        memory_size=50,
+        memory_size=size_validation_data,
         tolerance=tolerance,
     )
     # If pre-trained experts are available
