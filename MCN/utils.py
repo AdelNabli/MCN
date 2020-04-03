@@ -1011,7 +1011,7 @@ def load_saved_experts(path):
         for f in os.listdir(path):
             expert_path = os.path.join(path, f)
             # if the thing is a file
-            if os.path.isfile(expert_path):
+            if os.path.isfile(expert_path) and ".pt" in expert_path:
                 # load the model
                 expert = torch.load(expert_path)
                 expert.eval()
