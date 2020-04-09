@@ -167,11 +167,22 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
     # Initialize the loss memory:
     memory_loss = [100*(tolerance + 1)] * 100
+    # Initialize the Budget_memory
+    Budget_memory = targets_experts.Budget_target - 1
 
     print("\n==========================================================================")
     print("Beginning training... \n")
 
     for episode in tqdm(range(E)):
+
+        # if we didn't filled the memory with the instances
+        # we are interested in at this stage
+        if Budget_memory < targets_experts.Budget_target:
+            Budget_memory += 1
+            # we empty the previous memory
+            memory.memory = []
+            print("\n==========================================================================")
+            print("Filling the training memory with %2d instances... \n" % memory_size)
 
         # Sample a random instance
         G_nx, J_init, Omega, Phi, Lambda = generate_random_instance(
@@ -243,57 +254,6 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             )
             # Update the environment
             env.step(action)
-            if len(memory) < batch_size:
-                pass
-            else:
-                # Init the optimizer
-                optimizer.zero_grad()
-                # Sample the memory
-                if train_on_every_task:
-                    n_mean = int((n_free_max + Omega_max + Phi_max + Lambda_max + n_free_min + 1) / 2)
-                    memory_sample_size = int(batch_size // n_mean)
-                else:
-                    memory_sample_size = batch_size
-                (
-                    afterstates,
-                    Omegas,
-                    Phis,
-                    Lambdas,
-                    J,
-                    saved_nodes,
-                    infected_nodes,
-                    size_connected,
-                    id_loss,
-                    targets,
-                    id_target,
-                ) = sample_memory(memory, Transition, memory_sample_size)
-                # Compute the loss
-                loss = compute_loss(
-                    value_net,
-                    id_loss,
-                    targets,
-                    id_target,
-                    G_torch=afterstates,
-                    Omegas=Omegas,
-                    Phis=Phis,
-                    Lambdas=Lambdas,
-                    J=J,
-                    saved_nodes=saved_nodes,
-                    infected_nodes=infected_nodes,
-                    size_connected=size_connected,
-                )
-                # Update the parameters of the Value_net
-                loss.backward()
-                for param in value_net.parameters():
-                    param.grad.data.clamp_(-1, 1)
-                optimizer.step()
-
-                # Update the tensorboard
-                writer.add_scalar("Loss", float(loss), count)
-
-                # update memory loss
-                memory_loss[count % 100] = float(loss)
-                count += 1
 
         # update the memory
         # if we train on every subtask
@@ -339,6 +299,58 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                 id_target,
             )
 
+        # Compute the loss and update parameters
+        if len(memory) < batch_size:
+            pass
+        else:
+            # Init the optimizer
+            optimizer.zero_grad()
+            # Sample the memory
+            if train_on_every_task:
+                n_mean = int((n_free_max + Omega_max + Phi_max + Lambda_max + n_free_min + 1) / 2)
+                memory_sample_size = int(batch_size // n_mean)
+            else:
+                memory_sample_size = batch_size
+            (
+                afterstates,
+                Omegas,
+                Phis,
+                Lambdas,
+                J,
+                saved_nodes,
+                infected_nodes,
+                size_connected,
+                id_loss,
+                targets,
+                id_target,
+            ) = sample_memory(memory, Transition, memory_sample_size)
+            # Compute the loss
+            loss = compute_loss(
+                value_net,
+                id_loss,
+                targets,
+                id_target,
+                G_torch=afterstates,
+                Omegas=Omegas,
+                Phis=Phis,
+                Lambdas=Lambdas,
+                J=J,
+                saved_nodes=saved_nodes,
+                infected_nodes=infected_nodes,
+                size_connected=size_connected,
+            )
+            # Update the parameters of the Value_net
+            loss.backward()
+            for param in value_net.parameters():
+                param.grad.data.clamp_(-1, 1)
+            optimizer.step()
+
+            # Update the tensorboard
+            writer.add_scalar("Loss", float(loss), count)
+
+            # update memory loss
+            memory_loss[count % 100] = float(loss)
+            count += 1
 
         if (
                 sum(memory_loss) / 100 < tolerance
