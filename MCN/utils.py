@@ -832,7 +832,7 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
         },
         os.path.join(path,"value_net.tar"),
     )
-    print("\nSaved models in " + path)
+    print("\nSaved models in " + path, '\n')
     # create a directory for the experts
     path = os.path.join(path,"experts")
     if not os.path.exists(path):
@@ -886,4 +886,36 @@ def load_training_param(value_net, optimizer, path):
     value_net.train()
 
     return(value_net, optimizer)
+
+
+class BestModel:
+
+    def __init__(self, best_value_net, size_memory_loss=100):
+
+        self.size_memory_loss = size_memory_loss
+        self.memory_loss = [np.infty] * size_memory_loss
+        self.best_model = best_value_net
+        self.best_loss = np.infty
+        self.mean_loss = np.infty
+        self.position = 0
+
+    def clear_memory(self):
+
+        self.memory_loss = [np.infty] * self.size_memory_loss
+        self.best_loss = np.infty
+        self.mean_loss = np.infty
+        self.position = 0
+
+    def append_loss(self, loss, value_net):
+
+        self.memory_loss[self.position % self.size_memory_loss] = loss
+        self.mean_loss = sum(self.memory_loss) / self.size_memory_loss
+        self.position += 1
+
+        if loss < self.best_loss:
+            self.best_model.load_state_dict(value_net.state_dict())
+
+
+
+
 

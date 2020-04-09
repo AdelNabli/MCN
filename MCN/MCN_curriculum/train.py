@@ -6,6 +6,7 @@ from datetime import datetime
 from collections import namedtuple
 from MCN.utils import (
     ReplayMemory,
+    BestModel,
     generate_random_instance,
     sample_memory,
     compute_loss,
@@ -134,6 +135,15 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         K=n_max,
         alpha=alpha,
     ).to(device)
+    # Initialize the 'best' Value neural network
+    best_value_net = ValueNet(
+        input_dim=5,
+        hidden_dim1=h1,
+        hidden_dim2=h2,
+        n_heads=n_heads,
+        K=n_max,
+        alpha=alpha,
+    ).to(device)
     # Initialize the pool of experts (target nets)
     targets_experts = TargetExperts(
         input_dim=5,
@@ -166,7 +176,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         # load the state dicts of the optimizer and value_net
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
     # Initialize the loss memory:
-    memory_loss = [100*(tolerance + 1)] * 100
+    memory_loss = BestModel(best_value_net, size_memory_loss=100)
     # Initialize the Budget_memory
     Budget_memory = targets_experts.Budget_target - 1
 
@@ -350,11 +360,11 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             writer.add_scalar("Loss", float(loss), count)
 
             # update memory loss
-            memory_loss[count % 100] = float(loss)
+            memory_loss.append_loss(float(loss), value_net)
             count += 1
 
         if (
-                sum(memory_loss) / 100 < tolerance
+                memory_loss.mean_loss < tolerance
                 and len(memory) >= batch_size
                 and count % target_update == 0
         ):
@@ -364,16 +374,16 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                 " \n loss : %f" % float(loss),
             )
             # test and update the target networks
-            targets_experts.test_update_target_nets(value_net)
+            targets_experts.test_update_target_nets(memory_loss.best_model)
             # print the losses of the experts
             print(
                 "Losses of the experts : " , targets_experts.losses_validation_sets,
                 "\nLosses of the current value net : " , targets_experts.losses_value_net
             )
             # Saves model
-            save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
+            save_models(date_str, dict_args, memory_loss.best_model, optimizer, count, targets_experts)
             # reset memory loss
-            memory_loss = [100*(tolerance + 1)] * 100
+            memory_loss.clear_memory()
     # Saves model
     save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
     writer.close()
