@@ -6,7 +6,7 @@ import random
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 from torch_geometric.data import Batch
-from torch_geometric.utils import from_networkx, scatter_
+from torch_geometric.utils import from_networkx
 from torch_geometric.transforms import LocalDegreeProfile
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -226,6 +226,19 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
     G = nx.convert_node_labels_to_integers(G)
 
     return (G, I, Omega, Phi, Lambda)
+
+
+class Instance:
+
+    """Creates an instance object to store the parameters defining an instance"""
+
+    def __init__(self, G, Omega, Phi, Lambda, J, value):
+        self.G = G
+        self.Omega = Omega
+        self.Phi = Phi
+        self.Lambda = Lambda
+        self.J = J
+        self.value = value
 
 
 def graph_torch(G_networkx):
@@ -508,7 +521,7 @@ class ReplayMemory(object):
         return len(self.memory)
 
 
-def compute_loss(value_net, id_loss, targets, id_graphs, **kwargs):
+def compute_loss(value_net, id_loss, targets, id_target, **kwargs):
     r"""Given the value net, a batch of afterstates, the id of the loss to apply to each afterstate and the targets,
     compute the total loss for the batch.
 
@@ -525,8 +538,6 @@ def compute_loss(value_net, id_loss, targets, id_graphs, **kwargs):
              5 -> no loss associated with the afterstate
     targets: float tensor (size = nb of possible next afterstates x 1),
              values of each of the next possible afterstates
-    id_graphs: tensor (size = nb of possible next afterstates x 1),
-               id of the graph each next afterstate is computed from
 
     Returns:
     -------
@@ -540,23 +551,19 @@ def compute_loss(value_net, id_loss, targets, id_graphs, **kwargs):
 
     # create the masks
     mask_01 = id_loss.le(1)[:, 0]
-    mask_0 = id_loss[mask_01].eq(0)[:, 0]
-    mask_1 = id_loss[mask_01].eq(1)[:, 0]
     mask_23 = id_loss.ge(2)[:, 0]
     mask_2 = id_loss[mask_23].eq(2)[:, 0]
     mask_3 = id_loss[mask_23].eq(3)[:, 0]
     mask_4 = id_loss[mask_23].eq(4)[:, 0]
+    mask_target = id_target.eq(1)[:, 0]
 
     # create the targets
     target = targets[:, 0]
-    # get the targets "min" and "max"
-    targets_max = scatter_("max", target, id_graphs)
-    targets_min = scatter_("min", target, id_graphs)
+    targets_min_max = target[mask_target]
+
     # Compute the losses
-    # S = max
-    loss_max = torch.sum((S[mask_01][mask_0] - targets_max[mask_0]) ** 2)
-    # S = min
-    loss_min = torch.sum((S[mask_01][mask_1] - targets_min[mask_1]) ** 2)
+    # S = max or S = min
+    loss_min_max = torch.sum((S[mask_01] - targets_min_max) ** 2)
     # S >= target
     loss_sup = torch.sum((F.relu(target[mask_2] - S[mask_23][mask_2])) ** 2)
     # S <= target
@@ -569,8 +576,7 @@ def compute_loss(value_net, id_loss, targets, id_graphs, **kwargs):
     # normalize the loss
     loss = 0
     if n_max_min_equal > 0:
-        loss += (loss_max + loss_min + loss_equal) / n_max_min_equal
-        # print('loss max min', loss)
+        loss += (loss_min_max + loss_equal) / n_max_min_equal
     if n_sup_inf > 0:
         loss += (loss_sup + loss_inf) / n_sup_inf
     # take the square root
@@ -628,15 +634,12 @@ def sample_memory(memory, Transition, batch_size):
     # concatenate the other variables
     id_loss = torch.cat(batch.id_loss)
     targets = torch.cat(batch.targets)
+    id_target = torch.cat(batch.id_target)
     n = len(id_loss)
     # create the budgets
     Omegas = torch.cat(batch.Omegas).view([n, 1])
     Phis = torch.cat(batch.Phis).view([n, 1])
     Lambdas = torch.cat(batch.Lambdas).view([n, 1])
-    # create the id_graph
-    id_graphs = torch.tensor(
-        [k for k in range(batch_size) for i in range(batch.next_n_free[k])]
-    ).to(device)
     # concatenate the connected component features
     J = torch.cat(batch.J)
     saved_nodes = torch.cat(batch.saved_nodes)
@@ -654,162 +657,11 @@ def sample_memory(memory, Transition, batch_size):
         size_connected,
         id_loss,
         targets,
-        id_graphs,
+        id_target,
     )
 
 
-def sample_memory_validation(memory, Transition, batch_size, multiple_targets=False, **kwargs):
-    """Sample the Validation dataset and returns all the necessary to compute the validation loss.
-
-    Parameters:
-    ----------
-    memory: ReplayMemory object,
-    Transition: named tuple used to build the ReplayMemory,
-    batch size: int,
-                size of the sample
-    multiple_targets: bool,
-                      whether it is necessary to compute the values
-                      of the targets from multiple target nets
-
-    Returns:
-    -------
-    Parameters of the loss function if multiple_target, else
-    Parameters of the loss function and the necessary
-    parameters to compute the values of the targets using
-    one target net"""
-
-    # sample the memory
-    transitions = memory.sample(batch_size)
-    batch = Transition(*zip(*transitions))
-    # create the torch geometric graphs
-    afterstates = Batch.from_data_list(
-        [graph for k in range(batch_size) for graph in batch.afterstates[k]]
-    ).to(device)
-    # concatenate the other variables
-    id_loss = torch.cat(batch.id_loss)
-    # create the budgets
-    Omegas = torch.cat(batch.Omegas)
-    Phis = torch.cat(batch.Phis)
-    Lambdas = torch.cat(batch.Lambdas)
-    # concatenate the connected component features
-    J = torch.cat(batch.J)
-    saved_nodes = torch.cat(batch.saved_nodes)
-    infected_nodes = torch.cat(batch.infected_nodes)
-    size_connected = torch.cat(batch.size_connected)
-
-    if multiple_targets:
-
-        list_next_Omegas = [
-            float(next_Omegas_tensor[0]) for next_Omegas_tensor in batch.next_Omegas
-        ]
-        list_next_Phis = [
-            float(next_Phis_tensor[0]) for next_Phis_tensor in batch.next_Phis
-        ]
-        list_next_Lambdas = [
-            float(next_Lambdas_tensor[0]) for next_Lambdas_tensor in batch.next_Lambdas
-        ]
-        target_list = []
-        id_graph_list = []
-
-        for k in range(len(list_next_Omegas)):
-
-            id_graph_list += [k for i in range(len(batch.next_afterstates[k]))]
-            Omega = list_next_Omegas[k]
-            Phi = list_next_Phis[k]
-            Lambda = list_next_Lambdas[k]
-            target_net = get_target_net(Omega=Omega, Phi=Phi, Lambda=Lambda, **kwargs)
-            # if it's the end
-            if target_net is None:
-                # the target is the true reward
-                target_list.append(batch.next_reward[k])
-
-            else:
-                # gather all the variables for the next turn
-                G_torch = Batch.from_data_list(
-                    [graph for graph in batch.next_afterstates[k]]
-                ).to(device)
-                next_Omega = batch.next_Omegas[k]
-                next_Phi = batch.next_Phis[k]
-                next_Lambda = batch.next_Lambdas[k]
-                next_J = batch.next_J[k]
-                next_saved = batch.next_saved_nodes[k]
-                next_infected = batch.next_infected_nodes[k]
-                next_size_connected = batch.next_size_connected[k]
-                # we compute the values of the target
-                with torch.no_grad():
-                    target_values = target_net(
-                        G_torch,
-                        next_Omega,
-                        next_Phi,
-                        next_Lambda,
-                        next_J,
-                        next_saved,
-                        next_infected,
-                        next_size_connected,
-                    )
-                target_list.append(target_values)
-        target = torch.cat(target_list)
-        id_graphs = torch.tensor(id_graph_list).to(device)
-
-        return (
-            afterstates,
-            Omegas,
-            Phis,
-            Lambdas,
-            J,
-            saved_nodes,
-            infected_nodes,
-            size_connected,
-            id_loss,
-            target,
-            id_graphs,
-        )
-
-    else:
-        next_afterstates = Batch.from_data_list(
-            [graph for k in range(batch_size) for graph in batch.next_afterstates[k]]
-        ).to(device)
-        rewards = torch.cat(batch.next_reward)
-        next_Omegas = torch.cat(batch.next_Omegas)
-        next_Phis = torch.cat(batch.next_Phis)
-        next_Lambdas = torch.cat(batch.next_Lambdas)
-        # create the id_graph
-        id_graphs = torch.tensor(
-            [
-                k
-                for k in range(batch_size)
-                for i in range(len(batch.next_afterstates[k]))
-            ]
-        ).to(device)
-        next_J = torch.cat(batch.next_J)
-        next_saved_nodes = torch.cat(batch.next_saved_nodes)
-        next_infected_nodes = torch.cat(batch.next_infected_nodes)
-        next_size_connected = torch.cat(batch.next_size_connected)
-
-        return (
-            afterstates,
-            Omegas,
-            Phis,
-            Lambdas,
-            J,
-            saved_nodes,
-            infected_nodes,
-            size_connected,
-            id_loss,
-            next_afterstates,
-            next_Omegas,
-            next_Phis,
-            next_Lambdas,
-            next_J,
-            next_saved_nodes,
-            next_infected_nodes,
-            next_size_connected,
-            rewards,
-            id_graphs,
-        )
-
-
-def update_training_memory(memory, memory_episode, actions, value, initial_player):
+def update_training_memory(memory, memory_episode, actions, value):
     """Backtracks the end reward obtained using the experts to
     take the actions at each middle step appearing during the
     unrolling of the episode and push all of these experiences
@@ -829,9 +681,6 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
              during the episode
     value: float,
            end reward obtained at the end of the episode
-    initial_player: int,
-                    the player we are currently focused on in the
-                    learning procedure
 
     Returns:
     -------
@@ -849,7 +698,7 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
         # initialize its set of actions
         actions_player = []
 
-        # for each actions he took, beggining with the last
+        # for each actions he took, beginning with the last
         for action in reversed(actions[player]):
 
             # if the memory is empty
@@ -869,8 +718,12 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
                     size_connected_tensor,
                     id_loss,
                     targets,
-                    next_n_free,
                 ) = memory_episode[-count]
+                # update the target's value
+                targets[action] = value
+                # create an id_target
+                id_target = torch.zeros(targets.shape).to(device)
+                id_target[action] = 1
             else:
                 # rename the actions with the correct id
                 actions_player = [
@@ -880,22 +733,20 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
                 # update the id_loss such that the loss for all the actions
                 # is the one (value_net - target)^2
                 id_loss[actions_player] = 4
-                # if it is the turn of the player we are currently focused on,
                 # we push the transition to memory
-                if player == initial_player:
-                    memory.push(
-                        list_G_torch,
-                        Omega_tensor,
-                        Phi_tensor,
-                        Lambda_tensor,
-                        J_tensor,
-                        saved_tensor,
-                        infected_tensor,
-                        size_connected_tensor,
-                        id_loss,
-                        targets,
-                        next_n_free,
-                    )
+                memory.push(
+                    list_G_torch,
+                    Omega_tensor,
+                    Phi_tensor,
+                    Lambda_tensor,
+                    J_tensor,
+                    saved_tensor,
+                    infected_tensor,
+                    size_connected_tensor,
+                    id_loss,
+                    targets,
+                    id_target,
+                )
                 actions_player.append(action)
                 # get the variables from the memory of the episode
                 (
@@ -909,18 +760,18 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
                     size_connected_tensor,
                     id_loss,
                     targets,
-                    next_n_free,
                 ) = memory_episode[-count]
                 # update the target such that instead of an estimation
                 # the target for all the optimal actions is the true end reward
                 targets[actions_player] = value
+                id_target = torch.zeros(targets.shape).to(device)
+                id_target[action] = 1
 
             # update the count variable
             count += 1
 
         # if the list of actions is non empty
-        # and if it is the turn of the player we want
-        if len(actions_player) > 0 and player == initial_player:
+        if len(actions_player) > 0 :
             # we push the last modification to the training memory
             memory.push(
                 list_G_torch,
@@ -933,7 +784,7 @@ def update_training_memory(memory, memory_episode, actions, value, initial_playe
                 size_connected_tensor,
                 id_loss,
                 targets,
-                next_n_free,
+                id_target,
             )
 
     return memory
@@ -981,6 +832,7 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
         },
         os.path.join(path,"value_net.tar"),
     )
+    print("\nSaved models in " + path)
     # create a directory for the experts
     path = os.path.join(path,"experts")
     if not os.path.exists(path):
@@ -992,7 +844,6 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
             name = os.path.join(path,"expert_" + str(count) + ".pt")
             torch.save(target_net, name)
             count += 1
-    print("\n Saved models in " + path)
 
 
 def load_saved_experts(path):
@@ -1021,3 +872,18 @@ def load_saved_experts(path):
         raise ValueError("no directory found at given path")
 
     return list_experts
+
+
+def load_training_param(value_net, optimizer, path):
+
+    """Load the training parameters of a previous training session
+    and resume training where things where left with the value_net
+    and the optimizer"""
+
+    checkpoint = torch.load(path)
+    value_net.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    value_net.train()
+
+    return(value_net, optimizer)
+

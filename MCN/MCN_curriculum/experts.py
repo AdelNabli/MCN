@@ -1,16 +1,28 @@
 import torch
-from collections import namedtuple
 from tqdm import tqdm
-from MCN.utils import (
-    ReplayMemory,
-    generate_random_instance,
-    sample_memory_validation,
-    compute_loss,
-)
-from .environment import Environment
-from .value_nn import ValueNet
+from torch_geometric.data import Batch
+from MCN.utils import generate_random_instance, Instance, graph_torch, features_connected_comp
+from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.MCN_curriculum.mcn_heuristic import solve_mcn_heuristic
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class Slot:
+    def __init__(self, tolerance):
+
+        self.instances = []
+        self.loss = tolerance
+        self.compute_target = True
+        self.afterstates = None
+        self.Omegas = None
+        self.Phis = None
+        self.Lambdas = None
+        self.J = None
+        self.saved_nodes = None
+        self.infected_nodes = None
+        self.size_connected = None
+        self.targets = None
 
 
 class TargetExperts(object):
@@ -21,8 +33,8 @@ class TargetExperts(object):
     - Store the target nets
     - Test the current value net and update the targets nets"""
 
-    def __init__( self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, n_free_min,
-                  n_free_max, Omega_max, Phi_max, Lambda_max, memory_size, tolerance):
+    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, n_free_min, n_free_max,
+                 Omega_max, Phi_max, Lambda_max, memory_size, tolerance):
 
         """Initiatialization of the target experts and creation of the Validation Dataset.
 
@@ -54,67 +66,34 @@ class TargetExperts(object):
         self.tolerance = tolerance
         self.n_max = Omega_max + Phi_max + Lambda_max
         self.Dataset = []
-        self.Transition = namedtuple(
-            "Transition",
-            (
-                "afterstates",
-                "Omegas",
-                "Phis",
-                "Lambdas",
-                "J",
-                "saved_nodes",
-                "infected_nodes",
-                "size_connected",
-                "id_loss",
-                "next_afterstates",
-                "next_Omegas",
-                "next_Phis",
-                "next_Lambdas",
-                "next_J",
-                "next_saved_nodes",
-                "next_infected_nodes",
-                "next_size_connected",
-                "next_reward",
-                "id_graphs",
-            ),
-        )
-
         self.create_dataset()
         # Initialize the parameters of the list of experts
-        self.list_target_nets = [None] * self.n_max
+        self.list_target_nets = [None] * (self.n_max - 1)
         self.Budget_target = 1
-        self.losses_validation_sets = [None] * self.n_max
-        self.losses_value_net = [None] * self.n_max
+        self.losses_validation_sets = [None] * (self.n_max - 1)
+        self.losses_value_net = [None] * (self.n_max - 1)
+        self.train_on_every_task = False
 
     def create_dataset(self):
 
         """Create the Validation Dataset by generating memory_size instances for each
         subtask appearing during the training of the value net"""
 
-        print(
-            "=========================================================================="
-        )
+        print("\n==========================================================================")
         print("Creation of the Validation Dataset ...", "\n")
 
-        for id_slot in tqdm(range(self.n_max)):
+        for id_slot in tqdm(range(self.n_max - 1)):
 
             # we are considering the phase where the Budget = id_slot +1
             Budget = id_slot + 1
-            # create a named tuple in each slot of the list
-            self.Dataset.append(namedtuple("slot", ("Data", "loss", "compute_target")))
-            # initiatlize the loss
-            self.Dataset[id_slot].loss = self.tolerance
-            # initialize the boolean variable
-            # if id_loss == 0, we are at the "end state" and the targets
-            # are the exact rewards, thus we do not need to compute them
-            self.Dataset[id_slot].compute_target = id_slot > 0
-            # initiatlize a replay memory
-            Data = ReplayMemory(self.memory_size, self.Transition)
+            # create a slot for each id_slot
+            slot = Slot(self.tolerance)
+            self.Dataset.append(slot)
 
             for k in range(self.memory_size):
 
                 # generate a random instance
-                G, I, Omega, Phi, Lambda = generate_random_instance(
+                G, J, Omega, Phi, Lambda = generate_random_instance(
                     self.n_free_min,
                     self.n_free_max,
                     self.Omega_max,
@@ -122,97 +101,17 @@ class TargetExperts(object):
                     self.Lambda_max,
                     Budget,
                 )
-                # Initialize the environment
-                env = Environment(G, Omega, Phi, Lambda, J=I)
-                # Compute the afterstates
-                env.compute_current_situation()
-                # save the data in memory
-                Data.push(
-                    env.list_G_torch,
-                    env.Omega_tensor,
-                    env.Phi_tensor,
-                    env.Lambda_tensor,
-                    env.J_tensor,
-                    env.saved_tensor,
-                    env.infected_tensor,
-                    env.size_connected_tensor,
-                    env.id_loss,
-                    env.next_list_G_torch,
-                    env.next_Omega_tensor,
-                    env.next_Phi_tensor,
-                    env.next_Lambda_tensor,
-                    env.next_J_tensor,
-                    env.next_saved_tensor,
-                    env.next_infected_tensor,
-                    env.next_size_connected_tensor,
-                    env.next_rewards,
-                    None,
-                )
-
-            # if we are in the tricky case of considering the first move of the vaccinator
-            # or the first from the attacker, and the previsous stage consisted in several steps
-            # we need to keep all the random instances separated as their afterstates may call several "experts"
-            test_first_Phi = Budget == self.Lambda_max + 1 and self.Lambda_max >= 1
-            test_first_Omega = (
-                Budget == self.Lambda_max + self.Phi_max + 1 and self.Phi_max > 1
-            )
-            if test_first_Phi or test_first_Omega:
-                self.Dataset[id_slot].Data = Data
-            # else, we are in a simple case, and only one expert is needed to
-            # compute the values of the afterstates, thus we concatenate everything
-            # and save the variables in a dataset of size 1
-            else:
-                Data_1 = ReplayMemory(1, self.Transition)
-                (
-                    afterstates,
-                    Omegas,
-                    Phis,
-                    Lambdas,
-                    J,
-                    saved_nodes,
-                    infected_nodes,
-                    size_connected,
-                    id_loss,
-                    next_afterstates,
-                    next_Omegas,
-                    next_Phis,
-                    next_Lambdas,
-                    next_J,
-                    next_saved_nodes,
-                    next_infected_nodes,
-                    next_size_connected,
-                    rewards,
-                    id_graphs,
-                ) = sample_memory_validation(Data, self.Transition, self.memory_size)
-                Data_1.push(
-                    afterstates,
-                    Omegas,
-                    Phis,
-                    Lambdas,
-                    J,
-                    saved_nodes,
-                    infected_nodes,
-                    size_connected,
-                    id_loss,
-                    next_afterstates,
-                    next_Omegas,
-                    next_Phis,
-                    next_Lambdas,
-                    next_J,
-                    next_saved_nodes,
-                    next_infected_nodes,
-                    next_size_connected,
-                    rewards,
-                    id_graphs,
-                )
-                self.Dataset[id_slot].Data = Data_1
+                # save everything in the Instance object
+                instance_k = Instance(G, Omega, Phi, Lambda, J, None)
+                # save the instance in the memory of the slot
+                self.Dataset[id_slot].instances.append(instance_k)
 
     def test_update_target_nets(self, value_net):
 
         """Test the current value net against the saved experts,
         if it performs well enough, update the list of target nets"""
 
-        print("==========================================================================")
+        print("\n==========================================================================")
         print("Test the Value net on Validation Dataset and Update the target nets ... \n")
 
         # for all the previously solved cases where an expert is available
@@ -224,109 +123,93 @@ class TargetExperts(object):
             # STEP 1: COMPUTE / GATHER TARGETS
             # if we need to compute the target for the loss
             if self.Dataset[id_slot].compute_target:
-                # if it's the simple case where the target is simply
-                # computed thanks to one expert
-                Budget = id_slot + 1
-                test_first_Phi = Budget == self.Lambda_max + 1 and self.Lambda_max >= 1
-                test_first_Omega = (
-                    Budget == self.Lambda_max + self.Phi_max + 1 and self.Phi_max > 1
+                # Initialize the lists for the slot
+                afterstates = []
+                Omegas = []
+                Phis = []
+                Lambdas = []
+                J_slot = []
+                saved_nodes_slot = []
+                infected_nodes_slot = []
+                size_connected_slot = []
+                targets = []
+
+                for instance in self.Dataset[id_slot].instances:
+                    # gather the values and the tensors
+                    (value, _, _, _) = solve_mcn_heuristic(
+                        self.list_target_nets,
+                        instance.G,
+                        instance.Omega,
+                        instance.Phi,
+                        instance.Lambda,
+                        self.Omega_max,
+                        self.Phi_max,
+                        self.Lambda_max,
+                        J=instance.J,
+                    )
+                    G_torch = graph_torch(instance.G)
+                    (
+                        _,
+                        J,
+                        saved_nodes,
+                        infected_nodes,
+                        size_connected,
+                    ) = features_connected_comp(instance.G, instance.J)
+                    # update the lists of the slot
+                    n_nodes = len(instance.G)
+                    afterstates.append(G_torch)
+                    Omegas.append(instance.Omega / n_nodes)
+                    Phis.append(instance.Phi / n_nodes)
+                    Lambdas.append(instance.Lambda / n_nodes)
+                    J_slot.append(J)
+                    saved_nodes_slot.append(saved_nodes)
+                    infected_nodes_slot.append(infected_nodes)
+                    size_connected_slot.append(size_connected)
+                    targets.append(value)
+
+                # concatenate everything into tensors that can be fed to a ValueNet
+                # and saved everything into the Slot object
+                self.Dataset[id_slot].afterstates = Batch.from_data_list(afterstates).to(device)
+                self.Dataset[id_slot].Omegas = (
+                    torch.tensor(Omegas, dtype=torch.float)
+                    .view([self.memory_size, 1])
+                    .to(device)
                 )
-                if not test_first_Phi and not test_first_Omega:
-                    # call the expert
-                    target_net = self.list_target_nets[id_slot - 1]
-                    # retrieve the validation data
-                    env = self.Dataset[id_slot].Data.sample(1)[0]
-                    # compute the target
-                    with torch.no_grad():
-                        target = target_net(
-                            env.next_afterstates,
-                            env.next_Omegas,
-                            env.next_Phis,
-                            env.next_Lambdas,
-                            env.next_J,
-                            env.next_saved_nodes,
-                            env.next_infected_nodes,
-                            env.next_size_connected,
-                        )
-                    # gather all the other variables necessary to compute the losses
-                    (
-                        afterstates,
-                        Omegas,
-                        Phis,
-                        Lambdas,
-                        J,
-                        saved_nodes,
-                        infected_nodes,
-                        size_connected,
-                        id_loss,
-                        id_graphs,
-                    ) = (
-                        env.afterstates,
-                        env.Omegas,
-                        env.Phis,
-                        env.Lambdas,
-                        env.J,
-                        env.saved_nodes,
-                        env.infected_nodes,
-                        env.size_connected,
-                        env.id_loss,
-                        env.id_graphs,
-                    )
-                    # we update the target as it was asked to compute it
-                    # we do that by pushing a whole new dataset as the size of the memory is 1
-                    self.Dataset[id_slot].Data.push(
-                        env.afterstates,
-                        env.Omegas,
-                        env.Phis,
-                        env.Lambdas,
-                        env.J,
-                        env.saved_nodes,
-                        env.infected_nodes,
-                        env.size_connected,
-                        env.id_loss,
-                        env.next_afterstates,
-                        env.next_Omegas,
-                        env.next_Phis,
-                        env.next_Lambdas,
-                        env.next_J,
-                        env.next_saved_nodes,
-                        env.next_infected_nodes,
-                        env.next_size_connected,
-                        target,
-                        env.id_graphs,
-                    )
-                    # update the boolean value
-                    self.Dataset[id_slot].compute_target = False
-                # else, it means we are in the more complicated case of the first attack or first vaccination
-                else:
-                    memory = self.Dataset[id_slot].Data
-                    (
-                        afterstates,
-                        Omegas,
-                        Phis,
-                        Lambdas,
-                        J,
-                        saved_nodes,
-                        infected_nodes,
-                        size_connected,
-                        id_loss,
-                        target,
-                        id_graphs,
-                    ) = sample_memory_validation(
-                        memory,
-                        self.Transition,
-                        self.memory_size,
-                        multiple_targets=True,
-                        list_target_nets=self.list_target_nets,
-                        Omega_max=self.Omega_max,
-                        Phi_max=self.Phi_max,
-                        Lambda_max=self.Lambda_max,
-                    )
-            # else, the targets are already available
-            else:
-                env = self.Dataset[id_slot].Data.sample(1)[0]
-                # gather all the variables necessary to compute the losses, including the target
-                (
+                self.Dataset[id_slot].Phis = (
+                    torch.tensor(Phis, dtype=torch.float)
+                    .view([self.memory_size, 1])
+                    .to(device)
+                )
+                self.Dataset[id_slot].Lambdas = (
+                    torch.tensor(Lambdas, dtype=torch.float)
+                    .view([self.memory_size, 1])
+                    .to(device)
+                )
+                self.Dataset[id_slot].J = torch.cat(J_slot)
+                self.Dataset[id_slot].saved_nodes = torch.cat(saved_nodes_slot)
+                self.Dataset[id_slot].infected_nodes = torch.cat(infected_nodes_slot)
+                self.Dataset[id_slot].size_connected = torch.cat(size_connected_slot)
+                self.Dataset[id_slot].targets = (
+                    torch.tensor(targets, dtype=torch.float)
+                    .view([self.memory_size, 1])
+                    .to(device)
+                )
+                self.Dataset[id_slot].compute_target = False
+
+            # Gather the parameters necessary to compute the loss
+            afterstates = self.Dataset[id_slot].afterstates
+            Omegas = self.Dataset[id_slot].Omegas
+            Phis = self.Dataset[id_slot].Phis
+            Lambdas = self.Dataset[id_slot].Lambdas
+            J = self.Dataset[id_slot].J
+            saved_nodes = self.Dataset[id_slot].saved_nodes
+            infected_nodes = self.Dataset[id_slot].infected_nodes
+            size_connected = self.Dataset[id_slot].size_connected
+            targets = self.Dataset[id_slot].targets
+
+            # STEP 2: COMPUTE THE LOSSES
+            with torch.no_grad():
+                value_approx = value_net(
                     afterstates,
                     Omegas,
                     Phis,
@@ -335,59 +218,22 @@ class TargetExperts(object):
                     saved_nodes,
                     infected_nodes,
                     size_connected,
-                    target,
-                    id_loss,
-                    id_graphs,
-                ) = (
-                    env.afterstates,
-                    env.Omegas,
-                    env.Phis,
-                    env.Lambdas,
-                    env.J,
-                    env.saved_nodes,
-                    env.infected_nodes,
-                    env.size_connected,
-                    env.next_reward,
-                    env.id_loss,
-                    env.id_graphs,
                 )
-
-            # STEP 2: COMPUTE THE LOSSES
-            with torch.no_grad():
-                loss_value = float(
-                    compute_loss(
-                        value_net,
-                        id_loss,
-                        target,
-                        id_graphs,
-                        G_torch=afterstates,
-                        Omegas=Omegas,
-                        Phis=Phis,
-                        Lambdas=Lambdas,
-                        J=J,
-                        saved_nodes=saved_nodes,
-                        infected_nodes=infected_nodes,
-                        size_connected=size_connected,
-                    )
-                )
+                loss_value = float(torch.sqrt(torch.mean((value_approx[:, 0] - targets[:, 0]) ** 2)))
                 # if there exists an expert to compete with the value net
                 if self.list_target_nets[id_slot] is not None:
-                    loss_target = float(
-                        compute_loss(
-                            self.list_target_nets[id_slot],
-                            id_loss,
-                            target,
-                            id_graphs,
-                            G_torch=afterstates,
-                            Omegas=Omegas,
-                            Phis=Phis,
-                            Lambdas=Lambdas,
-                            J=J,
-                            saved_nodes=saved_nodes,
-                            infected_nodes=infected_nodes,
-                            size_connected=size_connected,
-                        )
+                    target_net = self.list_target_nets[id_slot]
+                    value_target = target_net(
+                        afterstates,
+                        Omegas,
+                        Phis,
+                        Lambdas,
+                        J,
+                        saved_nodes,
+                        infected_nodes,
+                        size_connected,
                     )
+                    loss_target = float(torch.sqrt(torch.mean((value_target[:, 0] - targets[:, 0]) ** 2)))
                     # update the loss in memory
                     # usefull in the case where the target nets where loaded
                     # at the beginning of the training instead of trained
@@ -422,12 +268,25 @@ class TargetExperts(object):
                 new_target_net.eval()
                 self.list_target_nets[id_slot] = new_target_net
                 # if there is a slot after this one
-                if id_slot < self.n_max - 1:
+                if id_slot < self.n_max - 2:
                     # we set the boolean of the next slot to True
                     # as we changed the target net, so the next targets need to be updated
                     self.Dataset[id_slot + 1].compute_target = True
+                # if this slot is before the first attack
+                if id_slot < self.Lambda_max <= self.n_max - 2:
+                    # we will need to re-compute the targets of the first attack
+                    self.Dataset[self.Lambda_max].compute_target = True
+                # if this slot is an "attacker" one
+                elif self.Lambda_max <= id_slot < self.Lambda_max + self.Phi_max <= self.n_max - 2:
+                    # we will need to re-compute the targets of the first attack
+                    self.Dataset[self.Lambda_max + self.Phi_max].compute_target = True
                 # if there was no expert and the value net performed well, we can pass to the next task
                 if update_Budget_target:
                     # if it's not already the maximum of Budget
-                    if self.Budget_target < self.n_max:
+                    if self.Budget_target < self.n_max - 1:
                         self.Budget_target += 1
+                # if the last expert needed is trained sufficiently well,
+                # we can train the value net on all tasks simultaneously
+                if id_slot == self.n_max - 2:
+                    self.train_on_every_task = True
+

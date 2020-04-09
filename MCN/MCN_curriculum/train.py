@@ -14,6 +14,9 @@ from MCN.utils import (
     take_action_deterministic,
     save_models,
     load_saved_experts,
+    load_training_param,
+    graph_torch,
+    features_connected_comp,
 )
 from MCN.MCN_curriculum.environment import Environment
 from MCN.MCN_curriculum.value_nn import ValueNet
@@ -24,7 +27,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, tolerance,
                     n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max,
-                    size_validation_data=50, path_experts=""):
+                    size_validation_data, path_experts=None, resume_training=False, path_train=""):
     """Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
 
@@ -66,10 +69,16 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
              maximum value of Phi we want the instances to have
     Lambda_max: int,
                 maximum value of Lambda we want the instances to have
-    path_experts: str (default=""),
+    path_experts: str (default None),
                   path the directory containing saved experts models
                   if given, begin the training at the first step after
                   the last trained expert
+    resume_training: bool (default False),
+                     if True, then the parameters of a previous training session
+                     is loaded thanks to path_train
+    path_train: str (default ""),
+                path of the file containing the parameters of a previous
+                training session
 
     Returns:
     -------
@@ -110,7 +119,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             "size_connected",
             "id_loss",
             "targets",
-            "next_n_free",
+            "id_target",
         ),
     )
     memory = ReplayMemory(memory_size, Transition)
@@ -142,26 +151,30 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         tolerance=tolerance,
     )
     # If pre-trained experts are available
-    if path_experts != "":
+    if path_experts is not None:
         # load them
         list_trained_experts = load_saved_experts(path_experts)
         Budget_trained = len(list_trained_experts)
         # update the TargetExperts object
         targets_experts.list_target_nets[:Budget_trained] = list_trained_experts
-        if Budget_trained < targets_experts.n_max:
+        if Budget_trained < targets_experts.n_max - 1:
             targets_experts.Budget_target = Budget_trained + 1
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
+    # If resume training
+    if resume_training:
+        # load the state dicts of the optimizer and value_net
+        value_net, optimizer = load_training_param(value_net, optimizer, path_train)
     # Initialize the loss memory:
     memory_loss = [100*(tolerance + 1)] * 100
 
-    print("==========================================================================")
+    print("\n==========================================================================")
     print("Beginning training... \n")
 
     for episode in tqdm(range(E)):
 
         # Sample a random instance
-        G_nx, I, Omega, Phi, Lambda = generate_random_instance(
+        G_nx, J_init, Omega, Phi, Lambda = generate_random_instance(
             n_free_min,
             n_free_max,
             Omega_max,
@@ -170,9 +183,11 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             targets_experts.Budget_target,
         )
         # Initialize the environment
-        env = Environment(G_nx, Omega, Phi, Lambda, J=I)
+        env = Environment(G_nx, Omega, Phi, Lambda, J=J_init)
         # Get the initial player
         initial_player = env.player
+        # Get whether we train on every task or not
+        train_on_every_task = targets_experts.train_on_every_task
         # Initialize the memory of the episode and the sets of actions
         memory_episode = []
         # one list of action for each player
@@ -224,18 +239,21 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                     env.size_connected_tensor,
                     env.id_loss,
                     targets,
-                    env.next_n_free,
                 )
             )
             # Update the environment
             env.step(action)
-
             if len(memory) < batch_size:
                 pass
             else:
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Sample the memory
+                if train_on_every_task:
+                    n_mean = int((n_free_max + Omega_max + Phi_max + Lambda_max + n_free_min + 1) / 2)
+                    memory_sample_size = int(batch_size // n_mean)
+                else:
+                    memory_sample_size = batch_size
                 (
                     afterstates,
                     Omegas,
@@ -247,14 +265,14 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                     size_connected,
                     id_loss,
                     targets,
-                    id_graphs,
-                ) = sample_memory(memory, Transition, batch_size)
+                    id_target,
+                ) = sample_memory(memory, Transition, memory_sample_size)
                 # Compute the loss
                 loss = compute_loss(
                     value_net,
                     id_loss,
                     targets,
-                    id_graphs,
+                    id_target,
                     G_torch=afterstates,
                     Omegas=Omegas,
                     Phis=Phis,
@@ -278,7 +296,49 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                 count += 1
 
         # update the memory
-        memory = update_training_memory(memory, memory_episode, actions_episode, value, initial_player)
+        # if we train on every subtask
+        if train_on_every_task:
+            # we push every transition to memory
+            memory = update_training_memory(
+                memory,
+                memory_episode,
+                actions_episode,
+                value,
+            )
+        # else, we only train on 1 task
+        else:
+            # Get the initial variables
+            G_torch = [graph_torch(G_nx)]
+            (
+                _,
+                J,
+                saved_nodes,
+                infected_nodes,
+                size_connected,
+            ) = features_connected_comp(G_nx, J_init)
+            n_nodes = len(G_nx)
+            Omega_tensor = torch.tensor([Omega / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+            Lambda_tensor = torch.tensor([Lambda / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+            Phi_tensor = torch.tensor([Phi / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+            # create the target tensors and the ids
+            target = torch.tensor([value], dtype=torch.float).view([1, 1]).to(device)
+            id_target = torch.tensor([0],  dtype=torch.float).view([1, 1]).to(device)
+            id_loss_tensor = torch.tensor([4],  dtype=torch.float).view([1, 1]).to(device)
+            # push the instance to memory
+            memory.push(
+                G_torch,
+                Omega_tensor,
+                Phi_tensor,
+                Lambda_tensor,
+                J,
+                saved_nodes,
+                infected_nodes,
+                size_connected,
+                id_loss_tensor,
+                target,
+                id_target,
+            )
+
 
         if (
                 sum(memory_loss) / 100 < tolerance
@@ -295,7 +355,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             # print the losses of the experts
             print(
                 "Losses of the experts : " , targets_experts.losses_validation_sets,
-                "\n losses of the current value net : " , targets_experts.losses_value_net
+                "\nLosses of the current value net : " , targets_experts.losses_value_net
             )
             # Saves model
             save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)

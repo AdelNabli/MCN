@@ -2,21 +2,8 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from MCN.utils import generate_random_instance, load_saved_experts
+from MCN.utils import generate_random_instance, load_saved_experts, Instance
 from MCN.solve_mcn import solve_mcn
-
-
-class Instance:
-
-    """Creates an instance object to store everything needed in the same place"""
-
-    def __init__(self, G, Omega, Phi, Lambda, J, value):
-        self.G = G
-        self.Omega = Omega
-        self.Phi = Phi
-        self.Lambda = Lambda
-        self.J = J
-        self.value = value
 
 
 def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, size_test_set, directory_path):
