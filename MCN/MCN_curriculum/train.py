@@ -350,6 +350,10 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
                 infected_nodes=infected_nodes,
                 size_connected=size_connected,
             )
+
+            # update memory loss
+            memory_loss.append_loss(float(loss), value_net)
+
             # Update the parameters of the Value_net
             loss.backward()
             for param in value_net.parameters():
@@ -358,9 +362,6 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
 
             # Update the tensorboard
             writer.add_scalar("Loss", float(loss), count)
-
-            # update memory loss
-            memory_loss.append_loss(float(loss), value_net)
             count += 1
 
         if (
