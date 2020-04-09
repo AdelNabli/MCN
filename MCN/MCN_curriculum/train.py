@@ -106,6 +106,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
     writer = SummaryWriter()
     # Init the counts
     count = 0
+    count_val = 0
     # Initialize the memory
     Transition = namedtuple(
         "Transition",
@@ -385,6 +386,13 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             save_models(date_str, dict_args, memory_loss.best_model, optimizer, count, targets_experts)
             # reset memory loss
             memory_loss.clear_memory()
+            # add the validation loss to tensorboard
+            writer.add_scalar(
+                "Loss validation",
+                float(targets_experts.losses_value_net[Budget_memory - 1]),
+                count_val
+            )
+            count_val += 1
     # Saves model
     save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
     writer.close()
