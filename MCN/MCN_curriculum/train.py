@@ -181,6 +181,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             Budget_memory += 1
             # we empty the previous memory
             memory.memory = []
+            memory.position = 0
             print("\n==========================================================================")
             print("Filling the training memory with %2d instances... \n" % memory_size)
 
