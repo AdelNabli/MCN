@@ -300,7 +300,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             )
 
         # Compute the loss and update parameters
-        if len(memory) < batch_size:
+        if len(memory) < memory_size:
             pass
         else:
             # Init the optimizer
