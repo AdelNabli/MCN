@@ -33,7 +33,7 @@ class TargetExperts(object):
     - Store the target nets
     - Test the current value net and update the targets nets"""
 
-    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, n_free_min, n_free_max,
+    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, p, n_free_min, n_free_max,
                  Omega_max, Phi_max, Lambda_max, memory_size, tolerance):
 
         """Initiatialization of the target experts and creation of the Validation Dataset.
@@ -55,6 +55,7 @@ class TargetExperts(object):
         self.n_heads = n_heads
         self.K = K
         self.alpha = alpha
+        self.p = p
         # Initialize the parameters of the instances
         self.n_free_min = n_free_min
         self.n_free_max = n_free_max
@@ -263,6 +264,7 @@ class TargetExperts(object):
                     self.n_heads,
                     self.K,
                     self.alpha,
+                    self.p
                 ).to(device)
                 new_target_net.load_state_dict(value_net.state_dict())
                 new_target_net.eval()

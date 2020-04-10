@@ -26,10 +26,10 @@ from MCN.MCN_curriculum.experts import TargetExperts
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, tolerance,
+def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2, n_heads, alpha, p, tolerance,
                     n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max,
                     size_validation_data, path_experts=None, resume_training=False, path_train=""):
-    """Training procedure. Follows the evolution of the training using tensorboard.
+    r"""Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
 
     Parameters:
@@ -55,6 +55,8 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
              number of heads used in the GATs of the ValueNet
     alpha: float,
            alpha value of the APPNP of the ValueNet
+    p: float \in [0,1]
+       dropout probability
     tolerance: float,
                value of the loss under which the value net
                is considered an expert at the task currently at hand
@@ -135,6 +137,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         n_heads=n_heads,
         K=n_max,
         alpha=alpha,
+        p=p
     ).to(device)
     # Initialize the 'best' Value neural network
     best_value_net = ValueNet(
@@ -144,6 +147,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         n_heads=n_heads,
         K=n_max,
         alpha=alpha,
+        p=p
     ).to(device)
     # Initialize the pool of experts (target nets)
     targets_experts = TargetExperts(
@@ -153,6 +157,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
         n_heads=n_heads,
         K=n_max,
         alpha=alpha,
+        p=p,
         n_free_min=n_free_min,
         n_free_max=n_free_max,
         Omega_max=Omega_max,
@@ -366,7 +371,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             count += 1
 
         if (
-                memory_loss.mean_loss < tolerance
+                memory_loss.mean_loss < tolerance + 0.1
                 and len(memory) >= batch_size
                 and count % target_update == 0
         ):

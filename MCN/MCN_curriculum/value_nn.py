@@ -24,7 +24,7 @@ class ValueNet(torch.nn.Module):
         - STEP 4 : sum the scores of the nodes to obtain
                    the value of the graph"""
 
-    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha):
+    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, p):
         super(ValueNet, self).__init__()
         r"""Initialize the Value Network
 
@@ -107,6 +107,8 @@ class ValueNet(torch.nn.Module):
         self.lin3 = nn.Linear(hidden_dim2 * 4 + 7, hidden_dim1)
         self.lin4 = nn.Linear(hidden_dim1, hidden_dim2)
         self.lin5 = nn.Linear(hidden_dim2, 1)
+        # dropout
+        self.dropout = nn.Dropout(p=p)
 
     def forward(self, G_torch, Omegas, Phis, Lambdas, J, saved_nodes, infected_nodes, size_connected):
 
@@ -189,8 +191,10 @@ class ValueNet(torch.nn.Module):
             1,
         )
         score = self.lin3(x_score)
+        score = self.dropout(score)
         score = F.leaky_relu(score, 0.2)
         score = self.lin4(score)
+        score = self.dropout(score)
         score = F.leaky_relu(score, 0.2)
         score = self.lin5(score)
         # put the score in [0,1]
