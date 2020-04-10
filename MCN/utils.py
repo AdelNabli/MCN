@@ -913,6 +913,7 @@ class BestModel:
         self.position += 1
 
         if loss < self.best_loss:
+            self.best_loss = loss
             self.best_model.load_state_dict(value_net.state_dict())
             self.best_model.eval()
 
