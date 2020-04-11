@@ -378,7 +378,7 @@ def train_value_net(batch_size, memory_size, lr, betas, E, target_update, h1, h2
             print(
                 " \n Budget target : %2d" % targets_experts.Budget_target,
                 " \n episode: %2d/%2d" % (episode, E),
-                " \n loss : %f" % float(loss),
+                " \n loss : %f" % memory_loss.best_loss,
             )
             # test and update the target networks
             targets_experts.test_update_target_nets(memory_loss.best_model)
