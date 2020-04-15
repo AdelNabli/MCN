@@ -104,8 +104,7 @@ class ValueNet(torch.nn.Module):
             ),
         )
         # Score for each node
-        #self.lin3 = nn.Linear(hidden_dim2 * 4 + 7, hidden_dim1)
-        self.lin3 = nn.Linear(hidden_dim2 * 3 + 3, hidden_dim1)
+        self.lin3 = nn.Linear(hidden_dim2 * 4 + 7, hidden_dim1)
         self.lin4 = nn.Linear(hidden_dim1, hidden_dim2)
         self.lin5 = nn.Linear(hidden_dim2, 1)
         # dropout
@@ -177,26 +176,17 @@ class ValueNet(torch.nn.Module):
         #     with the graph embedding and the descriptors
         #     of the situation, i.e J, saved_nodes, infected_nodes
         #     size_connected and the budgets
-        #x_score = torch.cat(
-            #[
-                #x_struc_node,
-                #g_embedding[batch],
-                #J,
-                #saved_nodes,
-                #infected_nodes,
-                #size_connected,
-                #Omegas[batch],
-                #Phis[batch],
-                #Lambdas[batch],
-           # ],
-           # 1,
-        #)
         x_score = torch.cat(
             [
-                g_embedding,
-                Omegas,
-                Phis,
-                Lambdas,
+                x_struc_node,
+                g_embedding[batch],
+                J,
+                saved_nodes,
+                infected_nodes,
+                size_connected,
+                Omegas[batch],
+                Phis[batch],
+                Lambdas[batch],
             ],
             1,
         )
@@ -207,10 +197,9 @@ class ValueNet(torch.nn.Module):
         score = self.dropout(score)
         score = F.leaky_relu(score, 0.2)
         score = self.lin5(score)
-        score_state = F.relu(score)
         # put the score in [0,1]
-        #score = torch.sigmoid(score)
+        score = torch.sigmoid(score)
         # sum the scores for each afterstates
-        #score_state = global_add_pool(score, batch).to(device)
+        score_state = global_add_pool(score, batch).to(device)
 
         return score_state
