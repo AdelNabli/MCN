@@ -1,7 +1,7 @@
 from MCN.MCN_exact.mcn_exact import solve_mcn_exact
 from MCN.MCN_exact.attack_protect import AP
 from MCN.MCN_exact.defender import solve_defender
-from MCN_curriculum.mcn_heuristic import solve_mcn_heuristic
+from MCN.MCN_curriculum.mcn_heuristic import solve_mcn_heuristic
 from MCN.utils import get_player
 
 
