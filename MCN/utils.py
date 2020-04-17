@@ -4,7 +4,6 @@ import torch
 import networkx as nx
 import random
 import matplotlib.pyplot as plt
-import torch.nn.functional as F
 from torch_geometric.data import Batch
 from torch_geometric.utils import from_networkx
 from torch_geometric.transforms import LocalDegreeProfile
@@ -135,15 +134,7 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
 
     Returns:
     -------
-    G: networkx graph
-    I: list of ints,
-       the list of attacked nodes
-    Omega: int,
-           the budget allocated to the vaccinator
-    Phi: int,
-         the budget allocated to the attacker
-    Lambda: int,
-            the budget allocated to the protector"""
+    instance: Instance object"""
 
     # if we generate an instance for the training procedure
     if Budget_target is not np.nan:
@@ -224,8 +215,10 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
     # Generate the attack
     I = list(np.random.choice(range(n), Phi_attacked, replace=False))
     G = nx.convert_node_labels_to_integers(G)
+    # Create the instance
+    instance = Instance(G, Omega, Phi, Lambda, I, value=0)
 
-    return (G, I, Omega, Phi, Lambda)
+    return instance
 
 
 class Instance:
@@ -233,12 +226,82 @@ class Instance:
     """Creates an instance object to store the parameters defining an instance"""
 
     def __init__(self, G, Omega, Phi, Lambda, J, value):
+        """
+        Parameters:
+        ----------
+        G: networkx graph
+        I: list of ints,
+           the list of attacked nodes
+        Omega: int,
+               the budget allocated to the vaccinator
+        Phi: int,
+             the budget allocated to the attacker
+        Lambda: int,
+                the budget allocated to the protector
+        value: int,
+               if known, the value of the instance"""
+
         self.G = G
         self.Omega = Omega
         self.Phi = Phi
         self.Lambda = Lambda
         self.J = J
         self.value = value
+
+
+class InstanceTorch:
+
+    """Creates an instance object to store all the tensors necessary to compute
+    the approximate values with the ValueNet"""
+
+    def __init__(self, G_torch, Omegas, Phis, Lambdas, J, saved_nodes, infected_nodes, size_connected, target):
+
+        self.G_torch = G_torch
+        self.Omegas = Omegas
+        self.Phis = Phis
+        self.Lambdas = Lambdas
+        self.J = J
+        self.saved_nodes = saved_nodes
+        self.infected_nodes = infected_nodes
+        self.size_connected = size_connected
+        self.target = target
+
+
+def instance_to_torch(instance):
+
+    """Transform an Instance object to an InstanceTorch one"""
+
+    # Transform the graph
+    G_torch = graph_torch(instance.G)
+    # Compute the features from the connected components
+    (
+        _,
+        J,
+        saved_nodes,
+        infected_nodes,
+        size_connected,
+    ) = features_connected_comp(instance.G, instance.J)
+    # Put the normalized budgets into tensors
+    n_nodes = len(instance.G)
+    Omega_tensor = torch.tensor([instance.Omega / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+    Lambda_tensor = torch.tensor([instance.Lambda / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+    Phi_tensor = torch.tensor([instance.Phi / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+    # Put the value into a tensor
+    target = torch.tensor([instance.value], dtype=torch.float).view([1, 1]).to(device)
+    # Gather everything into a single InstanceTorch object
+    instance_torch = InstanceTorch(
+        G_torch,
+        Omega_tensor,
+        Phi_tensor,
+        Lambda_tensor,
+        J,
+        saved_nodes,
+        infected_nodes,
+        size_connected,
+        target,
+    )
+
+    return instance_torch
 
 
 def graph_torch(G_networkx):
@@ -488,103 +551,6 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
     return action, targets, value
 
 
-class ReplayMemory(object):
-    """ The Replay Memory for the training procedure.
-    Keep in memory 'capacity' transitions to sample from.
-
-    Parameters:
-    ----------
-    capacity: int,
-              the capacity of the memory
-    Transition: namedtuple,
-                the parameters to remember from the transition
-
-    code from: https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html """
-
-    def __init__(self, capacity, Transition):
-        self.capacity = capacity
-        self.memory = []
-        self.position = 0
-        self.Transition = Transition
-
-    def push(self, *args):
-        """Saves a transition."""
-        if len(self.memory) < self.capacity:
-            self.memory.append(None)
-        self.memory[self.position] = self.Transition(*args)
-        self.position = (self.position + 1) % self.capacity
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
-
-
-def compute_loss(value_net, id_loss, targets, id_target, **kwargs):
-    r"""Given the value net, a batch of afterstates, the id of the loss to apply to each afterstate and the targets,
-    compute the total loss for the batch.
-
-    Parameters:
-    ----------
-    value_net: neural network (pytorch module)
-    id_loss: float tensor (size = nb of current afterstates x 1),
-             the id of the loss to apply to each afterstate
-             0 -> \hat{s} = max target
-             1 -> \hat{s} = min target
-             2 -> \hat{s} >= target
-             3 -> \hat{s} <= target
-             4 -> \hat{s} = target
-             5 -> no loss associated with the afterstate
-    targets: float tensor (size = nb of possible next afterstates x 1),
-             values of each of the next possible afterstates
-
-    Returns:
-    -------
-    loss: float tensor (size = 1),
-          computed as follows:
-          sqrt( mse_{parts where the is an equality} +
-                mse_{parts where there is an inequality} )"""
-
-    # compute the values and the targets
-    S = value_net(**kwargs)[:, 0]
-
-    # create the masks
-    mask_01 = id_loss.le(1)[:, 0]
-    mask_23 = id_loss.ge(2)[:, 0]
-    mask_2 = id_loss[mask_23].eq(2)[:, 0]
-    mask_3 = id_loss[mask_23].eq(3)[:, 0]
-    mask_4 = id_loss[mask_23].eq(4)[:, 0]
-    mask_target = id_target.eq(1)[:, 0]
-
-    # create the targets
-    target = targets[:, 0]
-    targets_min_max = target[mask_target]
-
-    # Compute the losses
-    # S = max or S = min
-    loss_min_max = torch.sum((S[mask_01] - targets_min_max) ** 2)
-    # S >= target
-    loss_sup = torch.sum((F.relu(target[mask_2] - S[mask_23][mask_2])) ** 2)
-    # S <= target
-    loss_inf = torch.sum((F.relu(S[mask_23][mask_3] - target[mask_3])) ** 2)
-    # S = target
-    loss_equal = torch.sum((S[mask_23][mask_4] - target[mask_4]) ** 2)
-    # get the normalization constants
-    n_max_min_equal = len(S[mask_01]) + len(S[mask_23][mask_4])
-    n_sup_inf = len(S[mask_23][mask_2]) + len(S[mask_23][mask_3])
-    # normalize the loss
-    loss = 0
-    if n_max_min_equal > 0:
-        loss += (loss_min_max + loss_equal) / n_max_min_equal
-    if n_sup_inf > 0:
-        loss += (loss_sup + loss_inf) / n_sup_inf
-    # take the square root
-    loss = torch.sqrt(loss)
-
-    return loss
-
-
 def get_target_net(list_target_nets, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max):
     """Returns the expert specialized in the subtask determined by the value of the budgets
 
@@ -608,186 +574,6 @@ def get_target_net(list_target_nets, Omega, Phi, Lambda, Omega_max, Phi_max, Lam
         return None
 
     return list_target_nets[target_id]
-
-
-def sample_memory(memory, Transition, batch_size):
-    """Sample the Replay Memory and returns all the necessary to compute the loss.
-
-    Parameters:
-    ----------
-    memory: ReplayMemory object,
-    Transition: named tuple used to build the ReplayMemory,
-    batch size: int,
-                size of the sample
-
-    Returns:
-    -------
-    Parameters of the loss function"""
-
-    # sample the memory
-    transitions = memory.sample(batch_size)
-    batch = Transition(*zip(*transitions))
-    # create the torch geometric graphs
-    afterstates = Batch.from_data_list(
-        [graph for k in range(batch_size) for graph in batch.afterstates[k]]
-    ).to(device)
-    # concatenate the other variables
-    id_loss = torch.cat(batch.id_loss)
-    targets = torch.cat(batch.targets)
-    id_target = torch.cat(batch.id_target)
-    n = len(id_loss)
-    # create the budgets
-    Omegas = torch.cat(batch.Omegas).view([n, 1])
-    Phis = torch.cat(batch.Phis).view([n, 1])
-    Lambdas = torch.cat(batch.Lambdas).view([n, 1])
-    # concatenate the connected component features
-    J = torch.cat(batch.J)
-    saved_nodes = torch.cat(batch.saved_nodes)
-    infected_nodes = torch.cat(batch.infected_nodes)
-    size_connected = torch.cat(batch.size_connected)
-
-    return (
-        afterstates,
-        Omegas,
-        Phis,
-        Lambdas,
-        J,
-        saved_nodes,
-        infected_nodes,
-        size_connected,
-        id_loss,
-        targets,
-        id_target,
-    )
-
-
-def update_training_memory(memory, memory_episode, actions, value):
-    """Backtracks the end reward obtained using the experts to
-    take the actions at each middle step appearing during the
-    unrolling of the episode and push all of these experiences
-    in the ReplayMemory dataset
-
-    Parameters:
-    ----------
-    memory: ReplayMemory object,
-            the main replay memory used in training
-    memory_episode: list,
-                    contains the values of the parameters
-                    we need to store in the memory
-                    during the unrolling of one episode
-    actions: list of list (of the form [[], [], []]),
-             contains the id of the action taken
-             by each player (0:vaccinator, 1:attacker, 2:protector)
-             during the episode
-    value: float,
-           end reward obtained at the end of the episode
-
-    Returns:
-    -------
-    memory: ReplayMemory object,
-            the main replay memory updated
-            with the transitions experienced
-            during the episode"""
-
-    # initialize the count
-    count = 1
-
-    # for each player, beginning with the last to play
-    for player in [2, 1, 0]:
-
-        # initialize its set of actions
-        actions_player = []
-
-        # for each actions he took, beginning with the last
-        for action in reversed(actions[player]):
-
-            # if the memory is empty
-            if len(actions_player) == 0:
-
-                # put the last action in memory
-                actions_player.append(action)
-                # get the variables from the memory of the episode
-                (
-                    list_G_torch,
-                    Omega_tensor,
-                    Phi_tensor,
-                    Lambda_tensor,
-                    J_tensor,
-                    saved_tensor,
-                    infected_tensor,
-                    size_connected_tensor,
-                    id_loss,
-                    targets,
-                ) = memory_episode[-count]
-                # update the target's value
-                targets[action] = value
-                # create an id_target
-                id_target = torch.zeros(targets.shape).to(device)
-                id_target[action] = 1
-            else:
-                # rename the actions with the correct id
-                actions_player = [
-                    action_p if action_p < action else action_p + 1
-                    for action_p in actions_player
-                ]
-                # update the id_loss such that the loss for all the actions
-                # is the one (value_net - target)^2
-                id_loss[actions_player] = 4
-                # we push the transition to memory
-                memory.push(
-                    list_G_torch,
-                    Omega_tensor,
-                    Phi_tensor,
-                    Lambda_tensor,
-                    J_tensor,
-                    saved_tensor,
-                    infected_tensor,
-                    size_connected_tensor,
-                    id_loss,
-                    targets,
-                    id_target,
-                )
-                actions_player.append(action)
-                # get the variables from the memory of the episode
-                (
-                    list_G_torch,
-                    Omega_tensor,
-                    Phi_tensor,
-                    Lambda_tensor,
-                    J_tensor,
-                    saved_tensor,
-                    infected_tensor,
-                    size_connected_tensor,
-                    id_loss,
-                    targets,
-                ) = memory_episode[-count]
-                # update the target such that instead of an estimation
-                # the target for all the optimal actions is the true end reward
-                targets[actions_player] = value
-                id_target = torch.zeros(targets.shape).to(device)
-                id_target[action] = 1
-
-            # update the count variable
-            count += 1
-
-        # if the list of actions is non empty
-        if len(actions_player) > 0 :
-            # we push the last modification to the training memory
-            memory.push(
-                list_G_torch,
-                Omega_tensor,
-                Phi_tensor,
-                Lambda_tensor,
-                J_tensor,
-                saved_tensor,
-                infected_tensor,
-                size_connected_tensor,
-                id_loss,
-                targets,
-                id_target,
-            )
-
-    return memory
 
 
 def save_models(date_str, dict_args, value_net, optimizer, count, targets_experts):
@@ -886,37 +672,6 @@ def load_training_param(value_net, optimizer, path):
     value_net.train()
 
     return(value_net, optimizer)
-
-
-class BestModel:
-
-    def __init__(self, best_value_net, size_memory_loss=100):
-
-        self.size_memory_loss = size_memory_loss
-        self.memory_loss = [np.infty] * size_memory_loss
-        self.best_model = best_value_net
-        self.best_loss = np.infty
-        self.mean_loss = np.infty
-        self.position = 0
-
-    def clear_memory(self):
-
-        self.memory_loss = [np.infty] * self.size_memory_loss
-        self.best_loss = np.infty
-        self.mean_loss = np.infty
-        self.position = 0
-
-    def append_loss(self, loss, value_net):
-
-        self.memory_loss[self.position % self.size_memory_loss] = loss
-        self.mean_loss = sum(self.memory_loss) / self.size_memory_loss
-        self.position += 1
-
-        if loss < self.best_loss:
-            self.best_loss = loss
-            self.best_model.load_state_dict(value_net.state_dict())
-            self.best_model.eval()
-
 
 
 
