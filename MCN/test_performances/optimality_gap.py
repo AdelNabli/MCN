@@ -59,28 +59,23 @@ def opt_gap(list_exact, list_approx):
     return gap
 
 
-def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts=[], test_set=[],
-                           directory_experts="", path_test_set="", **kwargs):
+def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_test_set="", **kwargs):
 
-    # if the list of experts have not been loaded in memory
-    if list_experts == []:
-        list_experts = load_saved_experts(directory_experts)
-        if list_experts == []:
-            raise ValueError("no models found in the directory specified")
-    # if the test set is not loaded in memory
-    if test_set == []:
-        # if the test set was not given
-        if ".gz" not in path_test_set:
-            # generate the test set in the 'test_performances' directory
-            if not os.path.exists("test_performances"):
-                os.mkdir("test_performances")
-                test_directory = "test_performances"
-            generate_test_set(directory_path=test_directory,
-                              Omega_max=Omega_max,
-                              Phi_max=Phi_max,
-                              Lambda_max=Lambda_max,
-                              **kwargs)
-        test_set = pickle.load(open(path_test_set, "rb"))
+    # if the test set was not given
+    if ".gz" not in path_test_set:
+        # generate the test set in the 'data\test' directory
+        if not os.path.exists('data'):
+            os.mkdir('data')
+        path_test_data = os.path.join('data', 'test_data')
+        if not os.path.exists(path_test_data):
+            os.mkdir(path_test_data)
+        generate_test_set(directory_path=path_test_data,
+                          Omega_max=Omega_max,
+                          Phi_max=Phi_max,
+                          Lambda_max=Lambda_max,
+                          **kwargs)
+        path_test_set = os.path.join(path_test_data, 'test_set.gz')
+    test_set = pickle.load(open(path_test_set, "rb"))
 
     print("==========================================================================")
     print("Computing the values using the heuristic... \n")

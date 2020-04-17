@@ -51,7 +51,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
                          Omega_max, Phi_max, Lambda_max, Budget, list_experts, path_data, solve_exact=False):
 
     print("\n==========================================================================")
-    print("Creating or Loading the Training and Validation sets for Budget = %2d... \n" % Budget)
+    print("Creating or Loading the Training and Validation sets for Budget = %2d \n" % Budget)
 
     # Initialize the dataset and number of instances to generate
     data = []
@@ -104,12 +104,14 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         data.append(instance_torch)
 
     # Save the data
+    if path_data is None:
+        path_data = 'data'
     if not os.path.exists(path_data):
         os.mkdir(path_data)
     path_train = os.path.join(path_data, 'train_data')
     if not os.path.exists(path_train):
         os.mkdir(path_train)
-    path_val = os.path.join(path_data, 'train_data')
+    path_val = os.path.join(path_data, 'val_data')
     if not os.path.exists(path_val):
         os.mkdir(path_val)
     path_train_data_budget = os.path.join(path_train, 'data_' + str(Budget) + '.gz')

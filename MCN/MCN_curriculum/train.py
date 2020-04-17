@@ -124,7 +124,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
     while targets_experts.Budget_target < Budget_max:
 
         print("\n==========================================================================")
-        print("Begin the training for Budget = %2d... \n" % targets_experts.Budget_target)
+        print("Begin the training for Budget = %2d \n" % targets_experts.Budget_target)
 
         # Load or Create the training and validation datasets
         training_generator, val_data = load_create_datasets(
@@ -145,7 +145,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
         # Loop over epochs
         for epoch in tqdm(range(n_epoch)):
             # Training for all batchs in the training set
-            for i_batch, batch_instances in tqdm(enumerate(training_generator)):
+            for i_batch, batch_instances in enumerate(training_generator):
                 # Compute the approximate values
                 values_approx = value_net(
                     batch_instances.G_torch,
@@ -177,12 +177,12 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
             # Print the information of the epoch
             print(
                 " \n Budget target : %2d/%2d" % (targets_experts.Budget_target, Budget_max - 1),
-                " \n Epoch: %2d/%2d" % (epoch, n_epoch),
+                " \n Epoch: %2d/%2d" % (epoch + 1, n_epoch),
                 " \n Loss of the current value net: %f" % float(loss),
                 " \n Losses of the experts : ", targets_experts.losses_validation_sets,
             )
             # Saves model
-            save_models(date_str, dict_args, value_net, optimizer, count, targets_experts.list_target_nets)
+            save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
 
         # Update the target budget
         targets_experts.Budget_target += 1
