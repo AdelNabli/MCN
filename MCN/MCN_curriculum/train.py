@@ -11,8 +11,8 @@ from MCN.MCN_curriculum.data import load_create_datasets
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net(batch_size, lr, betas, n_epoch, target_update, h1, h2, n_heads, alpha, p,
-                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, size_train_data, size_val_data,
+def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch, h1, h2, n_heads, alpha, p,
+                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train=""):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
@@ -22,15 +22,16 @@ def train_value_net(batch_size, lr, betas, n_epoch, target_update, h1, h2, n_hea
     ----------
     batch_size: int,
                 size of the batch used to compute the loss
+    size_train_data: int,
+                     size of the training set used to train each target net
+    size_val_data: int,
+                   size of the validation dataset used for each target net
     lr: float,
         learning rate of the optimizer
     betas: tuple of floats,
            betas used for the optimizer
     n_epoch: int,
              number of epoch used to train each target net
-    target_update: int,
-                   number of steps after which to test
-                   the current value net on the Validation Dataset
     h1: int,
         first hidden dim of the ValueNet
     h2: int,
@@ -53,10 +54,6 @@ def train_value_net(batch_size, lr, betas, n_epoch, target_update, h1, h2, n_hea
              maximum value of Phi we want the instances to have
     Lambda_max: int,
                 maximum value of Lambda we want the instances to have
-    size_train_data: int,
-                     size of the training set used to train each target net
-    size_val_data: int,
-                   size of the validation dataset used for each target net
     num_workers: int (default 0),
                  num of workers used for the dataloader object during training
     path_experts: str (default None),
@@ -109,7 +106,6 @@ def train_value_net(batch_size, lr, betas, n_epoch, target_update, h1, h2, n_hea
         n_heads=n_heads,
         K=n_max,
         alpha=alpha,
-        p=p,
         Omega_max=Omega_max,
         Phi_max=Phi_max,
         Lambda_max=Lambda_max,
