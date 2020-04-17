@@ -1,5 +1,5 @@
 import torch
-from MCN.utils import graph_torch, new_graph, features_connected_comp, get_player
+from MCN.utils import graph_torch, new_graph, features_connected_comp, get_player, compute_saved_nodes
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -145,29 +145,37 @@ class Environment(object):
 
             self.next_list_J.append(J_new)
             self.next_list_G_nx.append(G_new)
-            # compute the corresponding G_torch graph
-            G_torch_new = graph_torch(G_new)
-            self.next_list_G_torch.append(G_torch_new)
-            # compute the features of the connected components
-            (
-                next_reward,
-                next_J_tensor,
-                next_saved_tensor,
-                next_infected_tensor,
-                next_size_connected_tensor,
-            ) = features_connected_comp(G_new, J_new)
+            # if the next player is not 3,
+            # we need to compute the torch tensors
+            if self.next_player != 3:
+                # compute the corresponding G_torch graph
+                G_torch_new = graph_torch(G_new)
+                self.next_list_G_torch.append(G_torch_new)
+                # compute the features of the connected components
+                (
+                    _,
+                    next_J_tensor,
+                    next_saved_tensor,
+                    next_infected_tensor,
+                    next_size_connected_tensor,
+                ) = features_connected_comp(G_new, J_new)
+                # put the reward to 0
+                next_reward = 0
+            # else, it's the end of the game
+            else:
+                # we need to compute the true reward
+                next_reward = compute_saved_nodes(G_new, J_new)
+                # the other tensors aren't necessary
+                next_J_tensor = torch.tensor([])
+                next_saved_tensor = torch.tensor([])
+                next_infected_tensor = torch.tensor([])
+                next_size_connected_tensor = torch.tensor([])
+
             list_next_J_tensor.append(next_J_tensor)
             list_next_saved_tensor.append(next_saved_tensor)
             list_next_infected_tensor.append(next_infected_tensor)
             list_next_size_connected_tensor.append(next_size_connected_tensor)
-            # if it's the last action of the game
-            # the end reward is available
-            if self.next_player == 3:
-                reward = next_reward
-            else:
-                # else, we put the reward to 0
-                reward = 0
-            next_rewards.append(reward)
+            next_rewards.append(next_reward)
 
         self.next_rewards = (
             torch.tensor(next_rewards, dtype=torch.float)
