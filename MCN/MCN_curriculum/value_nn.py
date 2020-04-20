@@ -1,9 +1,49 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import GlobalAttention, APPNP, global_add_pool, GATConv
+from torch_geometric.nn import GlobalAttention, APPNP, global_add_pool, GATConv, BatchNorm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+class AttentionLayer(nn.Module):
+
+    """Implementation of the AttentionLayer described in the
+    'Attention learn to solve routing problem' paper https://arxiv.org/abs/1803.08475"""
+
+    def __init__(self, n_heads, dim_embedding, dim_values, dim_hidden):
+        super(AttentionLayer, self).__init__()
+
+        self.n_heads = n_heads
+        self.dim_values = dim_values
+
+        self.GAT = GATConv(dim_embedding, dim_values, heads=n_heads, concat=True, bias=False)
+        self.lin1 = nn.Linear(dim_values, dim_embedding, bias=False)
+        self.BN1 = BatchNorm(dim_embedding)
+        self.lin2 = nn.Linear(dim_embedding, dim_hidden)
+        self.lin3 = nn.Linear(dim_hidden, dim_embedding)
+        self.BN2 = BatchNorm(dim_embedding)
+
+    def forward(self, x, edge_index):
+        # Message passing using attention
+        h = self.GAT(x, edge_index)
+        # undo the concatenation of the results of the M heads
+        # at the output of the GAT layer
+        h = h.view(-1, self.n_heads, self.dim_values)
+        # project back to embedding space
+        h = self.lin1(h)
+        # sum the results of the M heads
+        h = torch.sum(h, 1)
+        # apply Batch Norm and skip connection
+        h = self.BN1(x + h)
+        # apply the feedforward  layer
+        h2 = self.lin2(h)
+        h2 = F.relu(h2)
+        h2 = self.lin3(h2)
+        # apply Batch Norm and skip connection
+        h2 = self.BN2(h2 + h)
+
+        return (h2)
 
 
 class ValueNet(torch.nn.Module):
@@ -17,7 +57,7 @@ class ValueNet(torch.nn.Module):
                    information about the graphs to compute
                    a graph embedding
         - STEP 3 : use the graph embeddings, node embeddings
-                   and informations about the nodes in order
+                   and information about the nodes in order
                    to compute a score for each node \in [0,1]
                    (can be thought of as the probability of
                    the node being saved in the end)
@@ -47,24 +87,9 @@ class ValueNet(torch.nn.Module):
                teleport factor of the APPNP part"""
 
         # Structural node embeddings
-        self.gat1 = GATConv(
-            input_dim + 2,
-            hidden_dim1,
-            heads=n_heads,
-            concat=True,
-            negative_slope=0.2,
-            dropout=0,
-        ).to(device)
-        self.lin1 = nn.Linear(hidden_dim1 * n_heads, hidden_dim1).to(device)
-        self.gat2 = GATConv(
-            hidden_dim1,
-            hidden_dim2,
-            heads=n_heads,
-            concat=True,
-            negative_slope=0.2,
-            dropout=0,
-        ).to(device)
-        self.lin2 = nn.Linear(hidden_dim2 * n_heads, hidden_dim2).to(device)
+        self.lin1 = nn.Linear(input_dim + 2, hidden_dim2)
+        self.Attention1 = AttentionLayer(n_heads, hidden_dim2, hidden_dim1, hidden_dim1)
+        self.Attention2 = AttentionLayer(n_heads, hidden_dim2, hidden_dim1, hidden_dim1)
         self.power = APPNP(K, alpha, bias=False).to(device)
         # Graph embedding
         self.pool1 = GlobalAttention(
@@ -105,7 +130,9 @@ class ValueNet(torch.nn.Module):
         )
         # Score for each node
         self.lin3 = nn.Linear(hidden_dim2 * 4 + 7, hidden_dim1)
+        self.BN1 = BatchNorm(hidden_dim1)
         self.lin4 = nn.Linear(hidden_dim1, hidden_dim2)
+        self.BN2 = BatchNorm(hidden_dim2)
         self.lin5 = nn.Linear(hidden_dim2, 1)
         # dropout
         self.dropout = nn.Dropout(p=p)
@@ -153,12 +180,9 @@ class ValueNet(torch.nn.Module):
         #    and the size of the connected component
         #    each node belongs to
         x_struc_node = torch.cat([x, J, size_connected], 1)
-        x_struc_node = self.gat1(x_struc_node, edge_index)
         x_struc_node = self.lin1(x_struc_node)
-        x_struc_node = F.leaky_relu(x_struc_node, 0.2)
-        x_struc_node = self.gat2(x_struc_node, edge_index)
-        x_struc_node = self.lin2(x_struc_node)
-        x_struc_node = F.leaky_relu(x_struc_node, 0.2)
+        x_struc_node = self.Attention1(x_struc_node, edge_index)
+        x_struc_node = self.Attention2(x_struc_node, edge_index)
         x_struc_node = self.power(x_struc_node, edge_index)
 
         # Graph embedding:
@@ -193,9 +217,11 @@ class ValueNet(torch.nn.Module):
         score = self.lin3(x_score)
         score = self.dropout(score)
         score = F.leaky_relu(score, 0.2)
+        score = self.BN1(score)
         score = self.lin4(score)
         score = self.dropout(score)
         score = F.leaky_relu(score, 0.2)
+        score = self.BN2(score)
         score = self.lin5(score)
         # put the score in [0,1]
         score = torch.sigmoid(score)
