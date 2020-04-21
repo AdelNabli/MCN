@@ -90,6 +90,7 @@ class ValueNet(torch.nn.Module):
         self.lin1 = nn.Linear(input_dim + 2, hidden_dim2)
         self.Attention1 = AttentionLayer(n_heads, hidden_dim2, hidden_dim1, hidden_dim1)
         self.Attention2 = AttentionLayer(n_heads, hidden_dim2, hidden_dim1, hidden_dim1)
+        self.Attention3 = AttentionLayer(n_heads, hidden_dim2, hidden_dim1, hidden_dim1)
         self.power = APPNP(K, alpha, bias=False).to(device)
         # Graph embedding
         self.pool1 = GlobalAttention(
@@ -183,6 +184,7 @@ class ValueNet(torch.nn.Module):
         x_struc_node = self.lin1(x_struc_node)
         x_struc_node = self.Attention1(x_struc_node, edge_index)
         x_struc_node = self.Attention2(x_struc_node, edge_index)
+        x_struc_node = self.Attention3(x_struc_node, edge_index)
         x_struc_node = self.power(x_struc_node, edge_index)
 
         # Graph embedding:
