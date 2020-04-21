@@ -293,7 +293,7 @@ def instance_to_torch(instance):
     ) = features_connected_comp(instance.G, instance.J)
     # Put the number of nodes into a tensor
     n = len(instance.G)
-    n_nodes = torch.tensor([n_nodes], dtype=torch.float).view([1, 1]).to(device)
+    n_nodes = torch.tensor([n], dtype=torch.float).view([1, 1]).to(device)
     # Put the normalized budgets into tensors
     Omega_norm = torch.tensor([instance.Omega / n], dtype=torch.float).view([1, 1]).to(device)
     Lambda_norm = torch.tensor([instance.Lambda / n], dtype=torch.float).view([1, 1]).to(device)
