@@ -103,7 +103,8 @@ def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False
     return graph_2
 
 
-def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, Budget_target=np.nan):
+def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
+                             Omega_max, Phi_max, Lambda_max, Budget_target=np.nan):
     r"""Generate a random instance of the MCN problem corresponding
     to the stage of the training we are in if Budget_target is defined.
     Else, we generate a random instance of the MCN problem.
@@ -120,6 +121,10 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
                 in the graph we will generate
     n_free_max: int,
                 the maximal number of free nodes
+    d_edge_min: float \in [0,1],
+                minimal edge density of the graphs considered
+    d_edge_max: float \in [0,1],
+                maximal edge density of the graphs considered
     Omega_max: int,
                the maximal vaccination budget
     Phi_max: int,
@@ -209,7 +214,7 @@ def generate_random_instance(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_
     partition = [0] + partition + [n]
     for k in range(n_comp):
         n_k = partition[k + 1] - partition[k]
-        d_k = 0.05 + np.exp(-n_k / 9)
+        d_k = d_edge_min + (d_edge_max - d_edge_min)*np.random.random()
         G_k = generate_random_graph(n_k, d_k, draw=False)
         G = nx.union(G, G_k, rename=("G-", "H-"))
     # Generate the attack

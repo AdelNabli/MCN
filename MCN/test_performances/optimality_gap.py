@@ -6,7 +6,8 @@ from MCN.utils import generate_random_instance, load_saved_experts, Instance
 from MCN.solve_mcn import solve_mcn
 
 
-def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, size_test_set, directory_path):
+def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
+                      size_test_set, directory_path):
 
     """Generates a set of random instances that are solved exactly with the MCN_exact algorithm.
     Each budget possible in [1, Omega_max + Phi_max + Lambda_max] is equally represented in
@@ -28,8 +29,16 @@ def generate_test_set(n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max, si
         test_set_budget = []
         for k in range(n_budget):
             # generate a random instance
-            G, J, Omega, Phi, Lambda = generate_random_instance(n_free_min, n_free_max, Omega_max,
-                                                                Phi_max, Lambda_max, Budget_target=budget)
+            G, J, Omega, Phi, Lambda = generate_random_instance(
+                n_free_min,
+                n_free_max,
+                d_edge_min,
+                d_edge_max,
+                Omega_max,
+                Phi_max,
+                Lambda_max,
+                Budget_target=budget,
+            )
             # if there is an attacker's move,
             # we empty J
             if Phi > 0:

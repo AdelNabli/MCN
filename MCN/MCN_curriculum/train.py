@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch, h1, h2, n_heads, alpha, p,
-                    n_free_min, n_free_max, Omega_max, Phi_max, Lambda_max,
+                    n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train=""):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
@@ -48,6 +48,10 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
     n_free_max: int,
                 maximum number of free nodes of the instances
                 we are considering
+    d_edge_min: float \in [0,1],
+                minimal edge density of the graphs considered
+    d_edge_max: float \in [0,1],
+                maximal edge density of the graphs considered
     Omega_max: int,
                maximum value of Omega we want the instances to have
     Phi_max: int,
@@ -134,6 +138,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
             num_workers,
             n_free_min,
             n_free_max,
+            d_edge_min,
+            d_edge_max,
             Omega_max,
             Phi_max,
             Lambda_max,

@@ -48,7 +48,8 @@ def collate_fn(list_instances):
 
 
 def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
-                         Omega_max, Phi_max, Lambda_max, Budget, list_experts, path_data, solve_exact=False):
+                         d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, Budget,
+                         list_experts, path_data, solve_exact=False):
 
     print("\n==========================================================================")
     print("Creating or Loading the Training and Validation sets for Budget = %2d \n" % Budget)
@@ -79,6 +80,8 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         instance = generate_random_instance(
             n_free_min,
             n_free_max,
+            d_edge_min,
+            d_edge_max,
             Omega_max,
             Phi_max,
             Lambda_max,
