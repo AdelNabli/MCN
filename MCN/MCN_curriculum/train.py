@@ -3,7 +3,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from datetime import datetime
-from MCN.utils import save_models,load_training_param
+from MCN.utils import save_models,load_training_param, count_param_NN
 from MCN.MCN_curriculum.value_nn import ValueNet
 from MCN.MCN_curriculum.experts import TargetExperts
 from MCN.MCN_curriculum.data import load_create_datasets
@@ -123,12 +123,14 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
         # load the state dicts of the optimizer and value_net
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
 
+    print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
+
     # While all the target nets are not trained
     Budget_max = Omega_max + Phi_max + Lambda_max
     while targets_experts.Budget_target < Budget_max:
 
         print("\n==========================================================================")
-        print("Begin the training for Budget = %2d \n" % targets_experts.Budget_target)
+        print("Training for Budget = %2d \n" % targets_experts.Budget_target)
 
         # Load or Create the training and validation datasets
         training_generator, val_data = load_create_datasets(

@@ -679,5 +679,19 @@ def load_training_param(value_net, optimizer, path):
     return(value_net, optimizer)
 
 
+def count_param_NN(module):
+
+    """Count the number of parameters in a Neural Network and returns it"""
+
+    n_param = 0
+    for parameter in module.parameters():
+
+        k_param = 1
+        for element in parameter.size():
+            k_param *= element
+        n_param += k_param
+
+    return n_param
+
 
 
