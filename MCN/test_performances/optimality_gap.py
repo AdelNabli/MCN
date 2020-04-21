@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from MCN.utils import generate_random_instance, load_saved_experts, Instance
+from MCN.utils import generate_random_instance, Instance
 from MCN.solve_mcn import solve_mcn
 
 
