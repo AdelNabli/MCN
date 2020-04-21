@@ -157,9 +157,13 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 # Compute the approximate values
                 values_approx = value_net(
                     batch_instances.G_torch,
+                    batch_instances.n_nodes,
                     batch_instances.Omegas,
                     batch_instances.Phis,
                     batch_instances.Lambdas,
+                    batch_instances.Omegas_norm,
+                    batch_instances.Phis_norm,
+                    batch_instances.Lambdas_norm,
                     batch_instances.J,
                     batch_instances.saved_nodes,
                     batch_instances.infected_nodes,

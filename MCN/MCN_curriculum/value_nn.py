@@ -130,7 +130,7 @@ class ValueNet(torch.nn.Module):
             ),
         )
         # Score for each node
-        self.lin3 = nn.Linear(hidden_dim2 * 4 + 7, hidden_dim1)
+        self.lin3 = nn.Linear(hidden_dim2 * 4 + 11, hidden_dim1)
         self.BN1 = BatchNorm(hidden_dim1)
         self.lin4 = nn.Linear(hidden_dim1, hidden_dim2)
         self.BN2 = BatchNorm(hidden_dim2)
@@ -138,7 +138,8 @@ class ValueNet(torch.nn.Module):
         # dropout
         self.dropout = nn.Dropout(p=p)
 
-    def forward(self, G_torch, Omegas, Phis, Lambdas, J, saved_nodes, infected_nodes, size_connected):
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
+                J, saved_nodes, infected_nodes, size_connected):
 
         """ Take a batch of states as input and returns a the values of each state.
 
@@ -147,12 +148,20 @@ class ValueNet(torch.nn.Module):
         G_torch: Pytorch Geometric batch data,
                  Pytorch Geometric representation of the graphs G along
                  with their node features
+        n_nodes: float tensor (size = Batch x 1)
+                 the number of nodes of each graph in the batch
         Omegas: float tensor (size = Batch x 1),
                 the budget omega for each graph in the batch
         Phis: float tensor (size = Batch x 1),
               the budget phi for each graph in the batch
         Lambdas: float tensor (size = Batch x 1),
                  the budget Lambda for each graph in the batch
+        Omegas_norm: float tensor (size = Batch x 1),
+                     the normalized budget omega for each graph in the batch
+        Phis_norm: float tensor (size = Batch x 1),
+                   the normalized budget phi for each graph in the batch
+        Lambdas_norm: float tensor (size = Batch x 1),
+                      the normalized budget Lambda for each graph in the batch
         J: float tensor (size = nb tot of nodes x 1),
            indicator 1_{node infected} for each node
            in each graph in the batch
@@ -200,12 +209,13 @@ class ValueNet(torch.nn.Module):
         # Node score:
         #     Concatenate the structural node embedding
         #     with the graph embedding and the descriptors
-        #     of the situation, i.e J, saved_nodes, infected_nodes
-        #     size_connected and the budgets
+        #     of the situation, i.e n_nodes, J, saved_nodes,
+        #     infected_nodes, size_connected and the budgets
         x_score = torch.cat(
             [
                 x_struc_node,
                 g_embedding[batch],
+                n_nodes[batch],
                 J,
                 saved_nodes,
                 infected_nodes,
@@ -213,6 +223,9 @@ class ValueNet(torch.nn.Module):
                 Omegas[batch],
                 Phis[batch],
                 Lambdas[batch],
+                Omegas_norm[batch],
+                Phis_norm[batch],
+                Lambdas_norm[batch],
             ],
             1,
         )

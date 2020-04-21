@@ -29,15 +29,19 @@ class MCNDataset(Dataset):
 def collate_fn(list_instances):
 
     # Initialize the collated instance
-    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0)
+    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     # Create a batch data object from Pytorch Geometric
     instances_collated.G_torch = Batch.from_data_list(
         [instances.G_torch for instances in list_instances]
     ).to(device)
     # Concatenate all the other parameters
+    instances_collated.n_nodes = torch.cat([instances.n_nodes for instances in list_instances])
     instances_collated.Omegas = torch.cat([instances.Omegas for instances in list_instances])
     instances_collated.Phis = torch.cat([instances.Phis for instances in list_instances])
     instances_collated.Lambdas = torch.cat([instances.Lambdas for instances in list_instances])
+    instances_collated.Omegas_norm = torch.cat([instances.Omegas_norm for instances in list_instances])
+    instances_collated.Phis_norm = torch.cat([instances.Phis_norm for instances in list_instances])
+    instances_collated.Lambdas_norm = torch.cat([instances.Lambdas_norm for instances in list_instances])
     instances_collated.J = torch.cat([instances.J for instances in list_instances])
     instances_collated.saved_nodes = torch.cat([instances.saved_nodes for instances in list_instances])
     instances_collated.infected_nodes = torch.cat([instances.infected_nodes for instances in list_instances])

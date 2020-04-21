@@ -259,12 +259,17 @@ class InstanceTorch:
     """Creates an instance object to store all the tensors necessary to compute
     the approximate values with the ValueNet"""
 
-    def __init__(self, G_torch, Omegas, Phis, Lambdas, J, saved_nodes, infected_nodes, size_connected, target):
+    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J,
+                 saved_nodes, infected_nodes, size_connected, target):
 
         self.G_torch = G_torch
+        self.n_nodes = n_nodes
         self.Omegas = Omegas
         self.Phis = Phis
         self.Lambdas = Lambdas
+        self.Omegas_norm = Omegas_norm
+        self.Phis_norm = Phis_norm
+        self.Lambdas_norm = Lambdas_norm
         self.J = J
         self.saved_nodes = saved_nodes
         self.infected_nodes = infected_nodes
@@ -286,19 +291,29 @@ def instance_to_torch(instance):
         infected_nodes,
         size_connected,
     ) = features_connected_comp(instance.G, instance.J)
+    # Put the number of nodes into a tensor
+    n = len(instance.G)
+    n_nodes = torch.tensor([n_nodes], dtype=torch.float).view([1, 1]).to(device)
     # Put the normalized budgets into tensors
-    n_nodes = len(instance.G)
-    Omega_tensor = torch.tensor([instance.Omega / n_nodes], dtype=torch.float).view([1, 1]).to(device)
-    Lambda_tensor = torch.tensor([instance.Lambda / n_nodes], dtype=torch.float).view([1, 1]).to(device)
-    Phi_tensor = torch.tensor([instance.Phi / n_nodes], dtype=torch.float).view([1, 1]).to(device)
+    Omega_norm = torch.tensor([instance.Omega / n], dtype=torch.float).view([1, 1]).to(device)
+    Lambda_norm = torch.tensor([instance.Lambda / n], dtype=torch.float).view([1, 1]).to(device)
+    Phi_norm = torch.tensor([instance.Phi / n], dtype=torch.float).view([1, 1]).to(device)
+    # Put the budgets into tensors
+    Omega_tensor = torch.tensor([instance.Omega], dtype=torch.float).view([1, 1]).to(device)
+    Lambda_tensor = torch.tensor([instance.Lambda], dtype=torch.float).view([1, 1]).to(device)
+    Phi_tensor = torch.tensor([instance.Phi], dtype=torch.float).view([1, 1]).to(device)
     # Put the value into a tensor
     target = torch.tensor([instance.value], dtype=torch.float).view([1, 1]).to(device)
     # Gather everything into a single InstanceTorch object
     instance_torch = InstanceTorch(
         G_torch,
+        n_nodes,
         Omega_tensor,
         Phi_tensor,
         Lambda_tensor,
+        Omega_norm,
+        Phi_norm,
+        Lambda_norm,
         J,
         saved_nodes,
         infected_nodes,
@@ -679,12 +694,12 @@ def load_training_param(value_net, optimizer, path):
     return(value_net, optimizer)
 
 
-def count_param_NN(module):
+def count_param_NN(torch_module):
 
     """Count the number of parameters in a Neural Network and returns it"""
 
     n_param = 0
-    for parameter in module.parameters():
+    for parameter in torch_module.parameters():
 
         k_param = 1
         for element in parameter.size():

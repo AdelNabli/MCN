@@ -61,7 +61,7 @@ class Environment(object):
 
     def compute_next_state_tensors(self):
 
-        self.next_Omega_tensor = (
+        self.next_Omega_norm = (
             torch.tensor(
                 [self.next_Omega / self.next_n_nodes] * self.next_n_free,
                 dtype=torch.float,
@@ -69,7 +69,7 @@ class Environment(object):
             .view([self.next_n_free, 1])
             .to(device)
         )
-        self.next_Phi_tensor = (
+        self.next_Phi_norm = (
             torch.tensor(
                 [self.next_Phi / self.next_n_nodes] * self.next_n_free,
                 dtype=torch.float,
@@ -77,7 +77,7 @@ class Environment(object):
             .view([self.next_n_free, 1])
             .to(device)
         )
-        self.next_Lambda_tensor = (
+        self.next_Lambda_norm = (
             torch.tensor(
                 [self.next_Lambda / self.next_n_nodes] * self.next_n_free,
                 dtype=torch.float,
@@ -85,11 +85,39 @@ class Environment(object):
             .view([self.next_n_free, 1])
             .to(device)
         )
-        self.next_player_tensor = (
-            torch.tensor([self.next_player] * self.next_n_free, dtype=torch.float)
-            .view([self.next_n_free, 1])
-            .to(device)
+        self.next_Omega_tensor = (
+            torch.tensor(
+                [self.next_Omega] * self.next_n_free,
+                dtype=torch.float,
+            )
+                .view([self.next_n_free, 1])
+                .to(device)
         )
+        self.next_Phi_tensor = (
+            torch.tensor(
+                [self.next_Phi] * self.next_n_free,
+                dtype=torch.float,
+            )
+                .view([self.next_n_free, 1])
+                .to(device)
+        )
+        self.next_Lambda_tensor = (
+            torch.tensor(
+                [self.next_Lambda] * self.next_n_free,
+                dtype=torch.float,
+            )
+                .view([self.next_n_free, 1])
+                .to(device)
+        )
+        self.next_n_nodes_tensor = (
+            torch.tensor(
+                [self.next_n_nodes] * self.next_n_free,
+                dtype=torch.float,
+            )
+                .view([self.next_n_free, 1])
+                .to(device)
+        )
+
 
     def update_budgets(self):
 

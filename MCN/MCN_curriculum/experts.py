@@ -82,9 +82,13 @@ class TargetExperts(object):
             # by the current value net on the validation set
             values_approx = new_target_net(
                         val_data.G_torch,
+                        val_data.n_nodes,
                         val_data.Omegas,
                         val_data.Phis,
                         val_data.Lambdas,
+                        val_data.Omegas_norm,
+                        val_data.Phis_norm,
+                        val_data.Lambdas_norm,
                         val_data.J,
                         val_data.saved_nodes,
                         val_data.infected_nodes,
