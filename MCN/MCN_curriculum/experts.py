@@ -60,7 +60,7 @@ class TargetExperts(object):
 
             self.Budget_target = Budget_trained + 1
 
-    def test_update_target_nets(self, value_net, val_data):
+    def test_update_target_nets(self, value_net, val_generator):
 
         """Test the current value net against the saved expert on the current validation set
         and keep the best of both as the current target net"""
@@ -77,25 +77,34 @@ class TargetExperts(object):
         ).to(device)
         new_target_net.load_state_dict(value_net.state_dict())
         new_target_net.eval()
+        # init the values approx and the target
+        target = []
+        val_approx = []
         with torch.no_grad():
             # Compute the approximate values given
             # by the current value net on the validation set
-            values_approx = new_target_net(
-                        val_data.G_torch,
-                        val_data.n_nodes,
-                        val_data.Omegas,
-                        val_data.Phis,
-                        val_data.Lambdas,
-                        val_data.Omegas_norm,
-                        val_data.Phis_norm,
-                        val_data.Lambdas_norm,
-                        val_data.J,
-                        val_data.saved_nodes,
-                        val_data.infected_nodes,
-                        val_data.size_connected,
-            )
+            # for every batch
+            for i_batch, batch_instances in enumerate(val_generator):
+                values_approx = new_target_net(
+                            batch_instances.G_torch,
+                            batch_instances.n_nodes,
+                            batch_instances.Omegas,
+                            batch_instances.Phis,
+                            batch_instances.Lambdas,
+                            batch_instances.Omegas_norm,
+                            batch_instances.Phis_norm,
+                            batch_instances.Lambdas_norm,
+                            batch_instances.J,
+                            batch_instances.saved_nodes,
+                            batch_instances.infected_nodes,
+                            batch_instances.size_connected,
+                )
+                val_approx.append(values_approx)
+                target.append(batch_instances.target)
             # Compute the loss
-            loss_value_net = float(torch.sqrt(torch.mean((values_approx[:, 0] - val_data.target[:, 0]) ** 2)))
+            target = torch.cat(target)
+            val_approx = torch.cat(val_approx)
+            loss_value_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
         id_slot = self.Budget_target - 1
         # If the current loss is less than the best loss so far
         if loss_value_net < self.losses_validation_sets[id_slot]:

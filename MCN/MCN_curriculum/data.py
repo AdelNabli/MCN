@@ -128,7 +128,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
     print("\nSaved datasets in " + path_data, '\n')
 
     # Create the datasets used during training and validation
-    val_data = collate_fn(data[size_train_data:size_train_data + size_val_data])
+    val_data = MCNDataset(data[size_train_data:size_train_data + size_val_data])
     train_data = MCNDataset(data[:size_train_data])
     train_loader = DataLoader(
         train_data,
@@ -137,5 +137,12 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         shuffle=True,
         num_workers=num_workers,
     )
+    val_loader = DataLoader(
+        val_data,
+        collate_fn=collate_fn,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+    )
 
-    return train_loader, val_data
+    return train_loader, val_loader

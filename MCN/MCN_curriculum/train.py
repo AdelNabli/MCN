@@ -133,7 +133,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
         print("Training for Budget = %2d \n" % targets_experts.Budget_target)
 
         # Load or Create the training and validation datasets
-        training_generator, val_data = load_create_datasets(
+        training_generator, val_generator = load_create_datasets(
             size_train_data,
             size_val_data,
             batch_size,
@@ -174,7 +174,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 # Compute the loss of the batch
                 loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
                 # Compute the loss on the Validation set
-                targets_experts.test_update_target_nets(value_net, val_data)
+                targets_experts.test_update_target_nets(value_net, val_generator)
                 # Update the parameters of the Value_net
                 loss.backward()
                 optimizer.step()
