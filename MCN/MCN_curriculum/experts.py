@@ -2,9 +2,10 @@ import torch
 import math
 import os
 import pickle
+from torch.utils.data import DataLoader
 from MCN.utils import load_saved_experts
 from MCN.MCN_curriculum.value_nn import ValueNet
-from MCN.MCN_curriculum.data import collate_fn
+from MCN.MCN_curriculum.data import MCNDataset, collate_fn
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -53,10 +54,17 @@ class TargetExperts(object):
                     if os.path.exists(path_val_data_budget):
                         # if it's the case, we load it
                         val_data = pickle.load(open(path_val_data_budget, "rb"))
-                        val_data = collate_fn(val_data)
+                        val_data = MCNDataset(val_data)
+                        val_loader = DataLoader(
+                            val_data,
+                            collate_fn=collate_fn,
+                            batch_size=256,
+                            shuffle=True,
+                            num_workers=0,
+                        )
                         # then, we test the target net on this validation set
                         self.Budget_target = Budget
-                        self.test_update_target_nets(self.list_target_nets[Budget - 1], val_data)
+                        self.test_update_target_nets(self.list_target_nets[Budget - 1], val_loader)
 
             self.Budget_target = Budget_trained + 1
 
