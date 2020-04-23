@@ -180,10 +180,11 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 optimizer.step()
                 # Update the tensorboard
                 writer.add_scalar("Loss", float(loss), count)
-                writer.add_scalar("Loss validation",
+                writer.add_scalar("Loss validation best",
                                   targets_experts.losses_validation_sets[targets_experts.Budget_target - 1],
                                   count,
                                   )
+                writer.add_scalar("Loss validation", targets_experts.loss_value_net, count)
                 count += 1
 
             # Print the information of the epoch
