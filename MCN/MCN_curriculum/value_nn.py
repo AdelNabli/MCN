@@ -146,11 +146,11 @@ class AttentionLayerDecoder(nn.Module):
         self.n_heads = n_heads
         self.dim_values = dim_values
 
-        self.proj_query = nn.Parameter(torch.Tensor(n_heads, dim_context, dim_values))
-        self.proj_keys = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values))
-        self.proj_values = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values))
-        self.query_coef = nn.Parameter(torch.Tensor(1))
-        self.proj_final = nn.Parameter(torch.Tensor(dim_values, dim_embedding))
+        self.proj_query = nn.Parameter(torch.Tensor(n_heads, dim_context, dim_values)).to(device)
+        self.proj_keys = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values)).to(device)
+        self.proj_values = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values)).to(device)
+        self.query_coef = nn.Parameter(torch.Tensor(1)).to(device)
+        self.proj_final = nn.Parameter(torch.Tensor(dim_values, dim_embedding)).to(device)
 
         self.init_param()
 
@@ -196,9 +196,9 @@ class AttentionLayerValues(nn.Module):
 
         self.dim_values = dim_values
 
-        self.proj_query = nn.Parameter(torch.Tensor(dim_context, dim_values))
-        self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values))
-        self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values))
+        self.proj_query = nn.Parameter(torch.Tensor(dim_context, dim_values)).to(device)
+        self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values)).to(device)
+        self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
 
         self.init_param()
 
