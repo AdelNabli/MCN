@@ -59,7 +59,7 @@ class TargetExperts(object):
                         val_loader = DataLoader(
                             val_data,
                             collate_fn=collate_fn,
-                            batch_size=256,
+                            batch_size=128,
                             shuffle=True,
                             num_workers=0,
                         )
