@@ -131,9 +131,9 @@ class ContextEncoder(nn.Module):
 
 
 def softmax_n_heads(src, index):
-    out = src - torch.index_select(scatter_max(src, index, dim=1)[0], 1, index[0].view(-1))
+    out = src - torch.index_select(scatter_max(src, index, dim=1)[0], 1, index[0].view(-1).to(device))
     out = out.exp()
-    out = out / (torch.index_select(scatter_add(out, index, dim=1), 1, index[0].view(-1)) + 1e-16)
+    out = out / (torch.index_select(scatter_add(out, index, dim=1), 1, index[0].view(-1)).to(device) + 1e-16)
 
     return out
 
@@ -180,7 +180,7 @@ class AttentionLayerDecoder(nn.Module):
         v = a * values
         # the new context embedding is created
         ids = torch.cat([indices_batch_n_heads] * self.dim_values, 2)
-        h = self.query_coef * query + torch.zeros(query.size()).scatter_add_(1, ids, v)
+        h = self.query_coef * query + torch.zeros(query.size()).to(device).scatter_add_(1, ids, v)
         # project back to embedding space
         h = torch.matmul(h, self.proj_final)
         # add the results from each head
