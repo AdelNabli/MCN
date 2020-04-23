@@ -191,6 +191,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 " \n Budget target : %2d/%2d" % (targets_experts.Budget_target, Budget_max - 1),
                 " \n Epoch: %2d/%2d" % (epoch + 1, n_epoch),
                 " \n Loss of the current value net: %f" % float(loss),
+                " \n Loss val of the current value net: %f" % targets_experts.loss_value_net,
                 " \n Losses of the experts : ", targets_experts.losses_validation_sets,
             )
             # Saves model

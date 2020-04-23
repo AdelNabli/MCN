@@ -29,6 +29,7 @@ class TargetExperts(object):
         self.n_max = Omega_max + Phi_max + Lambda_max
         self.list_target_nets = [None] * (self.n_max - 1)
         self.losses_validation_sets = [math.inf] * (self.n_max - 1)
+        self.loss_value_net = math.inf
         self.Budget_target = 1
 
         self.resume_training(path_experts, path_data)
@@ -113,6 +114,7 @@ class TargetExperts(object):
             target = torch.cat(target)
             val_approx = torch.cat(val_approx)
             loss_value_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
+            self.loss_value_net = loss_value_net
         id_slot = self.Budget_target - 1
         # If the current loss is less than the best loss so far
         if loss_value_net < self.losses_validation_sets[id_slot]:
