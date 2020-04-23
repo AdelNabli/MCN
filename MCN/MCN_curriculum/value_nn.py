@@ -53,11 +53,13 @@ class NodeEncoder(nn.Module):
     def __init__(self, dim_input, n_heads, n_att_layers, dim_embedding, dim_values, dim_hidden, K, alpha):
         super(NodeEncoder, self).__init__()
 
+        self.n_att_layers = n_att_layers
         self.Lin1 = nn.Linear(dim_input + 2, dim_embedding)
-        att_layers = []
-        for k in range(n_att_layers):
-            att_layers.append(AttentionLayer(n_heads, dim_embedding, dim_values, dim_hidden))
-        self.attention_layers = nn.Sequential(*att_layers)
+        self.attention_layers = nn.ModuleList(
+            [
+                AttentionLayer(n_heads, dim_embedding, dim_values, dim_hidden) for k in range(n_att_layers)
+            ]
+        )
         self.power = APPNP(K, alpha, bias=False).to(device)
 
     def forward(self, G_torch, J, saved_nodes, infected_nodes, size_connected):
@@ -69,11 +71,12 @@ class NodeEncoder(nn.Module):
         # project the features into a dim_embedding vector space
         h = self.Lin1(h)
         # apply the attention layers
-        h = self.attention_layers(h, edge_index)
+        for k in range(self.n_att_layers):
+            h = self.attention_layers[k](h, edge_index)
         # apply the power layer
         h = self.power(h, edge_index)
         # re-add the information about the node's state
-        h = torch.cat([x, size_connected, J, saved_nodes, infected_nodes], 1)
+        h = torch.cat([h, size_connected, J, saved_nodes, infected_nodes], 1)
         G_torch.x = h
 
         return G_torch
