@@ -11,7 +11,8 @@ from MCN.MCN_curriculum.data import load_create_datasets
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch, h1, h2, n_heads, alpha, p,
+def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch,
+                    dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha,
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train=""):
 
@@ -93,21 +94,33 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
     # Compute n_max
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     # Initialize the Value neural network
+    #         input_dim=5,
+    #         hidden_dim1=h1,
+    #         hidden_dim2=h2,
+    #         n_heads=n_heads,
+    #         K=n_max,
+    #         alpha=alpha,
+    #         p=p
     value_net = ValueNet(
-        input_dim=5,
-        hidden_dim1=h1,
-        hidden_dim2=h2,
+        dim_input=5,
+        dim_embedding=dim_embedding,
+        dim_values=dim_values,
+        dim_hidden=dim_hidden,
         n_heads=n_heads,
+        n_att_layers=n_att_layers,
+        n_pool=n_pool,
         K=n_max,
         alpha=alpha,
-        p=p
     ).to(device)
     # Initialize the pool of experts (target nets)
     targets_experts = TargetExperts(
-        input_dim=5,
-        hidden_dim1=h1,
-        hidden_dim2=h2,
+        dim_input=5,
+        dim_embedding=dim_embedding,
+        dim_values=dim_values,
+        dim_hidden=dim_hidden,
         n_heads=n_heads,
+        n_att_layers=n_att_layers,
+        n_pool=n_pool,
         K=n_max,
         alpha=alpha,
         Omega_max=Omega_max,

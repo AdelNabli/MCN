@@ -15,13 +15,16 @@ class TargetExperts(object):
 
     """Object containing the target nets and updating them during learning"""
 
-    def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha,
+    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha,
                  Omega_max, Phi_max, Lambda_max, path_experts, path_data):
 
         # Initialize the parameters of the neural network
-        self.input_dim = input_dim
-        self.hidden_dim1 = hidden_dim1
-        self.hidden_dim2 = hidden_dim2
+        self.dim_input = dim_input
+        self.dim_embedding = dim_embedding
+        self.dim_values = dim_values
+        self.dim_hidden = dim_hidden
+        self.n_att_layers = n_att_layers
+        self.n_pool = n_pool
         self.n_heads = n_heads
         self.K = K
         self.alpha = alpha
@@ -76,13 +79,15 @@ class TargetExperts(object):
 
         # Create a target net from the current value net
         new_target_net = ValueNet(
-            self.input_dim,
-            self.hidden_dim1,
-            self.hidden_dim2,
-            self.n_heads,
-            self.K,
-            self.alpha,
-            p=0,
+            dim_input=self.dim_input,
+            dim_embedding=self.dim_embedding,
+            dim_values=self.dim_values,
+            dim_hidden=self.dim_hidden,
+            n_heads=self.n_heads,
+            n_att_layers=self.n_att_layers,
+            n_pool=self.n_pool,
+            K=self.K,
+            alpha=self.alpha,
         ).to(device)
         new_target_net.load_state_dict(value_net.state_dict())
         new_target_net.eval()

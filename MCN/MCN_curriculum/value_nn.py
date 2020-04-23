@@ -1,6 +1,8 @@
 import torch
+import math
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_scatter import scatter_add, scatter_max
 from torch_geometric.nn import GlobalAttention, APPNP, global_add_pool, GATConv, BatchNorm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -43,10 +45,211 @@ class AttentionLayer(nn.Module):
         # apply Batch Norm and skip connection
         h2 = self.BN2(h2 + h)
 
-        return (h2)
+        return h2
 
 
-class ValueNet(torch.nn.Module):
+class NodeEncoder(nn.Module):
+
+    def __init__(self, dim_input, n_heads, n_att_layers, dim_embedding, dim_values, dim_hidden, K, alpha):
+        super(NodeEncoder, self).__init__()
+
+        self.Lin1 = nn.Linear(dim_input + 2, dim_embedding)
+        att_layers = []
+        for k in range(n_att_layers):
+            att_layers.append(AttentionLayer(n_heads, dim_embedding, dim_values, dim_hidden))
+        self.attention_layers = nn.Sequential(*att_layers)
+        self.power = APPNP(K, alpha, bias=False).to(device)
+
+    def forward(self, G_torch, J, saved_nodes, infected_nodes, size_connected):
+
+        # retrieve the data
+        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
+        # gather together the node features with J and size_connected
+        h = torch.cat([x, J, size_connected], 1)
+        # project the features into a dim_embedding vector space
+        h = self.Lin1(h)
+        # apply the attention layers
+        h = self.attention_layers(h, edge_index)
+        # apply the power layer
+        h = self.power(h, edge_index)
+        # re-add the information about the node's state
+        h = torch.cat([x, size_connected, J, saved_nodes, infected_nodes], 1)
+        G_torch.x = h
+
+        return G_torch
+
+
+class ContextEncoder(nn.Module):
+
+    def __init__(self, n_pool, dim_embedding, dim_hidden):
+        super(ContextEncoder, self).__init__()
+
+        self.n_pool = n_pool
+        self.graph_pool = nn.ModuleList(
+            [
+                GlobalAttention(
+                    nn.Sequential(nn.Linear(dim_embedding + 4, dim_hidden),
+                                  nn.ReLU(),
+                                  nn.Linear(dim_hidden, 1)),
+                    nn.Sequential(nn.Linear(dim_embedding + 4, dim_hidden),
+                                  nn.ReLU(),
+                                  nn.Linear(dim_hidden, dim_embedding)))
+                for k in range(n_pool)
+            ]
+        )
+
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm):
+
+        # retrieve the data
+        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
+        # concatenate the n_pool graph pool
+        context_embedding = self.graph_pool[0](x, batch)
+        for k in range(self.n_pool - 1):
+            context_embedding = torch.cat(
+                [
+                    context_embedding,
+                    self.graph_pool[k + 1](x, batch),
+                ], 1
+            )
+        # create the final context tensor
+        context = torch.cat(
+        [
+            context_embedding,
+            n_nodes,
+            Omegas,
+            Phis,
+            Lambdas,
+            Omegas_norm,
+            Phis_norm,
+            Lambdas_norm,
+        ], 1)
+
+        return context
+
+
+def softmax_n_heads(src, index):
+    out = src - torch.index_select(scatter_max(src, index, dim=1)[0], 1, index[0].view(-1))
+    out = out.exp()
+    out = out / (torch.index_select(scatter_add(out, index, dim=1), 1, index[0].view(-1)) + 1e-16)
+
+    return out
+
+
+class AttentionLayerDecoder(nn.Module):
+
+    def __init__(self, n_heads, dim_context, dim_embedding, dim_values):
+        super(AttentionLayerDecoder, self).__init__()
+
+        self.n_heads = n_heads
+        self.dim_values = dim_values
+
+        self.proj_query = nn.Parameter(torch.Tensor(n_heads, dim_context, dim_values))
+        self.proj_keys = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values))
+        self.proj_values = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values))
+        self.query_coef = nn.Parameter(torch.Tensor(1))
+        self.proj_final = nn.Parameter(torch.Tensor(dim_values, dim_embedding))
+
+        self.init_param()
+
+    def init_param(self):
+        for param in self.parameters():
+            stdv = 1. / math.sqrt(param.size(-1))
+            param.data.uniform_(-stdv, stdv)
+
+    def forward(self, G_torch, context):
+        # retrieve the data
+        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
+        # compute the query, keys, values
+        query = torch.matmul(context, self.proj_query)  # size = (n_heads, Batch size, dim_values)
+        keys = torch.matmul(x, self.proj_keys)  # size = (n_heads, n_nodes in batch, dim_values)
+        values = torch.matmul(x, self.proj_values)  # size = (n_heads, n_nodes in batch, dim_values)
+        # transpose the query
+        query_t = torch.transpose(query, 1, 2)  # size = (n_heads, dim_values, Batch size)
+        # compute the dot product <query, keys>
+        u = torch.matmul(keys, query_t) * (
+                    1 / math.sqrt(self.dim_values))  # size = (n_heads, n_nodes in batch, Batch size)
+        # remove the useless dot products (e.g query of 1st graph in batch with nodes from the 2nd graph in batch)
+        indices_batch_n_heads = torch.cat([batch.view((1, -1, 1))] * self.n_heads)
+        u = torch.gather(u, 2, indices_batch_n_heads)  # size = (n_heads, n_nodes in batch, 1)
+        # compute the softmax coefficient
+        a = softmax_n_heads(u, indices_batch_n_heads)
+        # multiply the values with the coefficients
+        v = a * values
+        # the new context embedding is created
+        ids = torch.cat([indices_batch_n_heads] * self.dim_values, 2)
+        h = self.query_coef * query + torch.zeros(query.size()).scatter_add_(1, ids, v)
+        # project back to embedding space
+        h = torch.matmul(h, self.proj_final)
+        # add the results from each head
+        h = torch.sum(h, 0)  # size = (Batch size, dim_embedding)
+
+        return h
+
+
+class AttentionLayerValues(nn.Module):
+
+    def __init__(self, dim_context, dim_embedding, dim_values):
+        super(AttentionLayerValues, self).__init__()
+
+        self.dim_values = dim_values
+
+        self.proj_query = nn.Parameter(torch.Tensor(dim_context, dim_values))
+        self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values))
+        self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values))
+
+        self.init_param()
+
+    def init_param(self):
+        for param in self.parameters():
+            stdv = 1. / math.sqrt(param.size(-1))
+            param.data.uniform_(-stdv, stdv)
+
+    def forward(self, G_torch, context):
+        # retrieve the data
+        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
+        # compute the query, keys, values
+        query = torch.matmul(context, self.proj_query)  # size = (Batch size, dim_values)
+        keys = torch.matmul(x, self.proj_keys)  # size = (n_nodes in batch, dim_values)
+        # transpose the query
+        query_t = torch.transpose(query, 0, 1)  # size = (dim_values, Batch size)
+        # compute the dot product <query, keys>
+        u = torch.matmul(keys, query_t) * (1 / math.sqrt(self.dim_values))  # size = (n_nodes in batch, Batch size)
+        # remove the useless dot products (e.g query of 1st graph in batch with nodes from the 2nd graph in batch)
+        indices_batch = batch.view((-1, 1))
+        u = torch.gather(u, 1, indices_batch)  # size = (n_nodes in batch, 1)
+        # put the score in [0,1]
+        score = torch.sigmoid(u)
+        # sum the scores for each afterstates
+        score_state = global_add_pool(score, batch).to(device)
+
+        return score_state
+
+
+class ValueNet(nn.Module):
+
+    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha):
+        super(ValueNet, self).__init__()
+
+        self.dim_context = dim_embedding * n_pool + 7
+        self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
+                                        dim_values, dim_hidden, K, alpha)
+        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden)
+        self.attention_layer_decoder = AttentionLayerDecoder(n_heads, self.dim_context, dim_embedding, dim_values)
+        self.attention_layer_values = AttentionLayerValues(self.dim_context, dim_embedding, dim_values)
+
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
+                J, saved_nodes, infected_nodes, size_connected):
+
+        G = self.node_encoder(G_torch, J, saved_nodes, infected_nodes, size_connected)
+        context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
+        context = self.attention_layer_decoder(G, context)
+        values = self.attention_layer_values(G, context)
+
+        return values
+
+
+
+class ValueNetOld(torch.nn.Module):
     r"""The Value Network used in order to estimate the number of saved
     nodes in the end given the current situation.
 
@@ -65,7 +268,7 @@ class ValueNet(torch.nn.Module):
                    the value of the graph"""
 
     def __init__(self, input_dim, hidden_dim1, hidden_dim2, n_heads, K, alpha, p):
-        super(ValueNet, self).__init__()
+        super(ValueNetOld, self).__init__()
         r"""Initialize the Value Network
 
         Parameters:
