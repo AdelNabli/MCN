@@ -35,7 +35,7 @@ class AttentionLayer(nn.Module):
         # project back to embedding space
         h = self.lin1(h)
         # sum the results of the M heads
-        h = torch.sum(h, 1)
+        # h = torch.sum(h, 1)
         # apply Batch Norm and skip connection
         h = self.BN1(x + h)
         # apply the feedforward  layer
