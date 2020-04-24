@@ -242,6 +242,7 @@ class ValueNetAtt(nn.Module):
 
         return values
 
+
 class ValueNet(nn.Module):
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha, p):

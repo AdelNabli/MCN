@@ -31,14 +31,15 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
     if exact:
         player = get_player(Omega, Phi, Lambda)
         if player == 0:
-            return solve_mcn_exact(G, Omega, Phi, Lambda)
+            value, D, I, P = solve_mcn_exact(G, Omega, Phi, Lambda)
+            return (value - Omega - Lambda, D, I, P)
         elif player == 1:
             I, _, _ = AP(G.nodes(), G.edges(), Phi, Lambda, target=1)
             value, _, P = solve_defender(I, G.nodes(), G.edges(), Lambda)
-            return (value, [], I, P)
+            return (value - Lambda, [], I, P)
         elif player == 2:
             value, _, P = solve_defender(J, G.nodes(), G.edges(), Lambda)
-            return (value, [], [], P)
+            return (value - Lambda, [], [], P)
     else:
         return solve_mcn_heuristic(
             list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=J

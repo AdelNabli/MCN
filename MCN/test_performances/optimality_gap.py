@@ -104,7 +104,6 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
                                                Lambda_max=Lambda_max, exact=False, list_experts=list_experts)
-            value_heuristic += instance.Omega + instance.Lambda
             value_exact = instance.value
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)

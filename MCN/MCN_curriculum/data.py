@@ -60,6 +60,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
 
     # Initialize the dataset and number of instances to generate
     data = []
+    len_data_train = 0
     total_size = size_train_data + size_val_data
     # If there is a data folder
     if path_data is not None:
