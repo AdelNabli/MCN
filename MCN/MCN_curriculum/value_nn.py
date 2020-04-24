@@ -20,7 +20,7 @@ class AttentionLayer(nn.Module):
         self.dim_values = dim_values
 
         self.GAT = GATConv(dim_embedding, dim_values, heads=n_heads, concat=True, bias=False)
-        self.lin1 = nn.Linear(dim_values * n_heads, dim_embedding, bias=False)
+        self.lin1 = nn.Linear(dim_values, dim_embedding, bias=False)
         self.BN1 = BatchNorm(dim_embedding)
         self.lin2 = nn.Linear(dim_embedding, dim_hidden)
         self.lin3 = nn.Linear(dim_hidden, dim_embedding)
@@ -31,11 +31,11 @@ class AttentionLayer(nn.Module):
         h = self.GAT(x, edge_index)
         # undo the concatenation of the results of the M heads
         # at the output of the GAT layer
-        # h = h.view(-1, self.n_heads, self.dim_values)
+        h = h.view(-1, self.n_heads, self.dim_values)
         # project back to embedding space
         h = self.lin1(h)
         # sum the results of the M heads
-        # h = torch.sum(h, 1)
+        h = torch.sum(h, 1)
         # apply Batch Norm and skip connection
         h = self.BN1(x + h)
         # apply the feedforward  layer
