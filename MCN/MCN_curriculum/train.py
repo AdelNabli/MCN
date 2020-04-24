@@ -12,7 +12,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch,
-                    dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha,
+                    dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train=""):
 
@@ -111,6 +111,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
         n_pool=n_pool,
         K=n_max,
         alpha=alpha,
+        p=p,
     ).to(device)
     # Initialize the pool of experts (target nets)
     targets_experts = TargetExperts(

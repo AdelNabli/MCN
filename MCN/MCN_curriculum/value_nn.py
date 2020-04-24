@@ -220,10 +220,10 @@ class AttentionLayerValues(nn.Module):
         return score_state
 
 
-class ValueNet(nn.Module):
+class ValueNetAtt(nn.Module):
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha):
-        super(ValueNet, self).__init__()
+        super(ValueNetAtt, self).__init__()
 
         self.dim_context = dim_embedding * n_pool + 7
         self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
@@ -241,6 +241,49 @@ class ValueNet(nn.Module):
         values = self.attention_layer_values(G, context)
 
         return values
+
+class ValueNet(nn.Module):
+
+    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha, p):
+        super(ValueNet, self).__init__()
+
+        dim_context = dim_embedding * n_pool + 7
+        self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
+                                        dim_values, dim_hidden, K, alpha)
+        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden)
+        # Score for each node
+        self.lin1 = nn.Linear(dim_context + dim_embedding + 4, dim_hidden)
+        self.BN1 = BatchNorm(dim_hidden)
+        self.lin2 = nn.Linear(dim_hidden, dim_embedding)
+        self.BN2 = BatchNorm(dim_embedding)
+        self.lin3 = nn.Linear(dim_embedding, 1)
+        # dropout
+        self.dropout = nn.Dropout(p=p)
+
+
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
+                J, saved_nodes, infected_nodes, size_connected):
+
+        G = self.node_encoder(G_torch, J, saved_nodes, infected_nodes, size_connected)
+        context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
+        # retrieve the data from G
+        x, edge_index, batch = G.x, G.edge_index, G.batch
+        x_score = torch.cat([x, context[batch]], 1)
+        score = self.lin1(x_score)
+        score = self.dropout(score)
+        score = F.leaky_relu(score, 0.2)
+        score = self.BN1(score)
+        score = self.lin2(score)
+        score = self.dropout(score)
+        score = F.leaky_relu(score, 0.2)
+        score = self.BN2(score)
+        score = self.lin3(score)
+        # put the score in [0,1]
+        score = torch.sigmoid(score)
+        # sum the scores for each afterstates
+        score_state = global_add_pool(score, batch).to(device)
+
+        return score_state
 
 
 

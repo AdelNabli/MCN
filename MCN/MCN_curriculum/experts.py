@@ -88,6 +88,7 @@ class TargetExperts(object):
             n_pool=self.n_pool,
             K=self.K,
             alpha=self.alpha,
+            p=0,
         ).to(device)
         new_target_net.load_state_dict(value_net.state_dict())
         new_target_net.eval()

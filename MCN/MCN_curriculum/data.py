@@ -69,6 +69,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         # if it's the case, we load it
         if os.path.exists(path_train_data_budget):
             data += pickle.load(open(path_train_data_budget, "rb"))
+            len_data_train = len(data)
         # similarly, we check whether there is a validation set available
         path_val_data_budget = os.path.join(path_data, 'val_data', 'data_' + str(Budget) + '.gz')
         # if it's the case, we load it
@@ -110,22 +111,23 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         # add the instance to the data
         data.append(instance_torch)
 
-    # Save the data
-    if path_data is None:
-        path_data = 'data'
-    if not os.path.exists(path_data):
-        os.mkdir(path_data)
-    path_train = os.path.join(path_data, 'train_data')
-    if not os.path.exists(path_train):
-        os.mkdir(path_train)
-    path_val = os.path.join(path_data, 'val_data')
-    if not os.path.exists(path_val):
-        os.mkdir(path_val)
-    path_train_data_budget = os.path.join(path_train, 'data_' + str(Budget) + '.gz')
-    path_val_data_budget = os.path.join(path_val, 'data_' + str(Budget) + '.gz')
-    pickle.dump(data[:size_train_data], open(path_train_data_budget, "wb"))
-    pickle.dump(data[size_train_data:], open(path_val_data_budget, "wb"))
-    print("\nSaved datasets in " + path_data, '\n')
+    # Save the data if there is a change in the dataset
+    if len_data_train != size_train_data or total_size > 0:
+        if path_data is None:
+            path_data = 'data'
+        if not os.path.exists(path_data):
+            os.mkdir(path_data)
+        path_train = os.path.join(path_data, 'train_data')
+        if not os.path.exists(path_train):
+            os.mkdir(path_train)
+        path_val = os.path.join(path_data, 'val_data')
+        if not os.path.exists(path_val):
+            os.mkdir(path_val)
+        path_train_data_budget = os.path.join(path_train, 'data_' + str(Budget) + '.gz')
+        path_val_data_budget = os.path.join(path_val, 'data_' + str(Budget) + '.gz')
+        pickle.dump(data[:size_train_data], open(path_train_data_budget, "wb"))
+        pickle.dump(data[size_train_data:], open(path_val_data_budget, "wb"))
+        print("\nSaved datasets in " + path_data, '\n')
 
     # Create the datasets used during training and validation
     val_data = MCNDataset(data[size_train_data:size_train_data + size_val_data])
