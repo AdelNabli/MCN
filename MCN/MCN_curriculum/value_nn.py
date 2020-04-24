@@ -187,12 +187,12 @@ class AttentionLayerDecoder(nn.Module):
 
 class AttentionLayerValues(nn.Module):
 
-    def __init__(self, dim_context, dim_embedding, dim_values):
+    def __init__(self, dim_embedding, dim_values):
         super(AttentionLayerValues, self).__init__()
 
         self.dim_values = dim_values
 
-        self.proj_query = nn.Parameter(torch.Tensor(dim_context, dim_values)).to(device)
+        self.proj_query = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
         self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values)).to(device)
         self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
 
@@ -234,7 +234,7 @@ class ValueNet(nn.Module):
                                         dim_values, dim_hidden, K, alpha)
         self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden)
         self.attention_layer_decoder = AttentionLayerDecoder(n_heads, self.dim_context, dim_embedding, dim_values)
-        self.attention_layer_values = AttentionLayerValues(self.dim_context, dim_embedding, dim_values)
+        self.attention_layer_values = AttentionLayerValues(dim_embedding, dim_values)
 
     def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
                 J, saved_nodes, infected_nodes, size_connected):
