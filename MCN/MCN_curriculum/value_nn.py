@@ -106,14 +106,10 @@ class ContextEncoder(nn.Module):
         # retrieve the data
         x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
         # concatenate the n_pool graph pool
-        context_embedding = self.graph_pool[0](x, batch)
-        for k in range(self.n_pool - 1):
-            context_embedding = torch.cat(
-                [
-                    context_embedding,
-                    self.graph_pool[k + 1](x, batch),
-                ], 1
-            )
+        context_embedding = []
+        for k in range(self.n_pool):
+            context_embedding.append(self.graph_pool[k](x, batch))
+        context_embedding = torch.cat(context_embedding, 1)
         # create the final context tensor
         context = torch.cat(
         [
