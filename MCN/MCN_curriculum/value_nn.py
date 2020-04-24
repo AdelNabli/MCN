@@ -148,12 +148,11 @@ class AttentionLayerDecoder(nn.Module):
         self.query_coef = nn.Parameter(torch.Tensor(1)).to(device)
         self.proj_final = nn.Parameter(torch.Tensor(dim_values, dim_embedding)).to(device)
 
-        self.init_param()
-
-    def init_param(self):
-        for param in self.parameters():
-            stdv = 1. / math.sqrt(param.size(-1))
-            param.data.uniform_(-stdv, stdv)
+        nn.init.xavier_uniform_(self.proj_query)
+        nn.init.xavier_uniform_(self.proj_keys)
+        nn.init.xavier_uniform_(self.proj_values)
+        nn.init.ones_(self.query_coef)
+        nn.init.xavier_uniform_(self.proj_final)
 
     def forward(self, G_torch, context):
         # retrieve the data
@@ -176,7 +175,7 @@ class AttentionLayerDecoder(nn.Module):
         v = a * values
         # the new context embedding is created
         ids = torch.cat([indices_batch_n_heads] * self.dim_values, 2)
-        h = self.query_coef * query + torch.zeros(query.size()).to(device).scatter_add_(1, ids, v)
+        h = self.query_coef*query + torch.zeros(query.size()).to(device).scatter_add_(1, ids, v)
         # project back to embedding space
         h = torch.matmul(h, self.proj_final)
         # add the results from each head
@@ -196,12 +195,9 @@ class AttentionLayerValues(nn.Module):
         self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values)).to(device)
         self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
 
-        self.init_param()
-
-    def init_param(self):
-        for param in self.parameters():
-            stdv = 1. / math.sqrt(param.size(-1))
-            param.data.uniform_(-stdv, stdv)
+        nn.init.xavier_uniform_(self.proj_query)
+        nn.init.xavier_uniform_(self.proj_keys)
+        nn.init.xavier_uniform_(self.proj_values)
 
     def forward(self, G_torch, context):
         # retrieve the data
