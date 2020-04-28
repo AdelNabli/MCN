@@ -103,7 +103,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
     # Initialize the memory
-    replay_memory = [None]*size_memory
+    replay_memory = []
     count_memory = 0
     # If resume training
     if resume_training:
@@ -207,7 +207,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
             env.step(action)
 
             # take an optim step
-            if count_instances % count_step == 0 and count_memory > size_memory:
+            if count_instances % count_step == 0 and count_memory > batch_size:
                 batch_data = random.sample(replay_memory, batch_size)
                 batch_instances = collate_fn(batch_data)
                 # Compute the approximate values
@@ -261,5 +261,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
         for instance in instances_episode:
             instance.value = value
             instance_torch = instance_to_torch(instance)
+            if len(replay_memory) < size_memory:
+                replay_memory.append(None)
             replay_memory[count_memory % size_memory] = instance_torch
             count_memory += 1
