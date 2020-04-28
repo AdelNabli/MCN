@@ -178,12 +178,12 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
         instances_episode = []
         # Unroll the episode
         while env.Budget >= 1:
+            # update the environment
+            env.compute_current_situation()
             # save the current instance
             current_instance = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
             instances_episode.append(current_instance)
             count_instances += 1
-            # update the environment
-            env.compute_current_situation()
             # Take an action
             action, targets, value = take_action_deterministic(
                 target_net,
