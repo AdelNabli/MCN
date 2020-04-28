@@ -64,7 +64,7 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
 def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_instances, update_target, count_step,
                         dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                         n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                        num_workers=0, resume_training=False, path_train="", path_directory_test=None):
+                        num_workers=0, resume_training=False, path_train="", path_test_data=None):
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -137,9 +137,12 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
         p=p,
     ).to(device)
     # generate the test set
-    generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max-1, Phi_max, Lambda_max,
-                      size_test_data, path_directory_test, to_torch=True)
-    path_test_set = os.path.join(path_directory_test, 'test_set_torch.gz')
+    if path_test_data is None:
+        generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max-1, Phi_max, Lambda_max,
+                          size_test_data, to_torch=True)
+        path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
+    else:
+        path_test_set = path_test_data
     # load the test set
     test_set = pickle.load(open(path_test_set, "rb"))
     # create a dataloader object for each dataset in the test set

@@ -7,7 +7,7 @@ from MCN.solve_mcn import solve_mcn
 
 
 def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                      size_test_set, directory_path, to_torch=False):
+                      size_test_set, to_torch=False):
 
     """Generates a set of random instances that are solved exactly with the MCN_exact algorithm.
     Each budget possible in [1, Omega_max + Phi_max + Lambda_max] is equally represented in
@@ -58,12 +58,15 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
             test_set_budget.append(instance_budget_k)
         test_set.append(test_set_budget)
 
-    if not os.path.exists(directory_path):
-        os.mkdir(directory_path)
+    if not os.path.exists('data'):
+        os.mkdir('data')
+    path_test_data = os.path.join('data', 'test_data')
+    if not os.path.exists(path_test_data):
+        os.mkdir(path_test_data)
     if to_torch:
-        file_path = os.path.join(directory_path, "test_set_torch.gz")
+        file_path = os.path.join(path_test_data, "test_set_torch.gz")
     else:
-        file_path = os.path.join(directory_path, "test_set.gz")
+        file_path = os.path.join(path_test_data, "test_set.gz")
     # save the test set
     pickle.dump(test_set, open(file_path, "wb"))
 
@@ -88,8 +91,7 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
         path_test_data = os.path.join('data', 'test_data')
         if not os.path.exists(path_test_data):
             os.mkdir(path_test_data)
-        generate_test_set(directory_path=path_test_data,
-                          Omega_max=Omega_max,
+        generate_test_set(Omega_max=Omega_max,
                           Phi_max=Phi_max,
                           Lambda_max=Lambda_max,
                           **kwargs)
