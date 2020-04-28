@@ -1,4 +1,6 @@
 import torch
+import os
+import pickle
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -6,15 +8,18 @@ from datetime import datetime
 from MCN.utils import save_models,load_training_param, count_param_NN
 from MCN.MCN_curriculum.value_nn import ValueNet
 from MCN.MCN_curriculum.experts import TargetExperts
-from MCN.MCN_curriculum.data import load_create_datasets
+from MCN.MCN_curriculum.data import load_create_datasets, MCNDataset, collate_fn
+from MCN.MCN_curriculum.train_dqn import compute_loss_test
+from MCN.test_performances.optimality_gap import generate_test_set
+from torch.utils.data import DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epoch,
+def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch,
                     dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                    num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train=""):
+                    num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="", path_test_data=None):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
@@ -137,6 +142,28 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
         # load the state dicts of the optimizer and value_net
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
 
+    # generate the test set
+    if path_test_data is None:
+        generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max - 1, Phi_max, Lambda_max,
+                          size_test_data, to_torch=True)
+        path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
+    else:
+        path_test_set = path_test_data
+    # load the test set
+    test_set = pickle.load(open(path_test_set, "rb"))
+    # create a dataloader object for each dataset in the test set
+    test_set_generators = []
+    for k in range(len(test_set)):
+        test_set_k = MCNDataset(test_set[k])
+        test_gen_k = DataLoader(
+            test_set_k,
+            collate_fn=collate_fn,
+            batch_size=batch_size,
+            shuffle=True,
+            num_workers=num_workers,
+        )
+        test_set_generators.append(test_gen_k)
+
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 
     # While all the target nets are not trained
@@ -189,6 +216,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
                 # Compute the loss on the Validation set
                 targets_experts.test_update_target_nets(value_net, val_generator)
+                losses_test = compute_loss_test(test_set_generators, list_experts=targets_experts.list_target_nets)
                 # Update the parameters of the Value_net
                 loss.backward()
                 optimizer.step()
@@ -199,6 +227,9 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                                   count,
                                   )
                 writer.add_scalar("Loss validation", targets_experts.loss_value_net, count)
+                for k in range(len(losses_test)):
+                    name_loss = 'Loss test budget = ' + str(k + 1)
+                    writer.add_scalar(name_loss, float(losses_test[k]), count)
                 count += 1
 
             # Print the information of the epoch
@@ -207,7 +238,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, lr, betas, n_epo
                 " \n Epoch: %2d/%2d" % (epoch + 1, n_epoch),
                 " \n Loss of the current value net: %f" % float(loss),
                 " \n Loss val of the current value net: %f" % targets_experts.loss_value_net,
-                " \n Losses of the experts : ", targets_experts.losses_validation_sets,
+                " \n Losses of the experts on val set: ", targets_experts.losses_validation_sets,
+                " \n Losses on test set : ", losses_test,
             )
             # Saves model
             save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
