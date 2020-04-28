@@ -25,7 +25,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
-
+    
     list_losses = []
     with torch.no_grad():
         for k in range(len(test_set_generators)):
@@ -33,6 +33,8 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
             val_approx = []
             if list_experts is not None:
                 target_net = list_experts[k]
+                if target_net is None
+                    break
             elif value_net is not None:
                 target_net = value_net
             for i_batch, batch_instances in enumerate(test_set_generators[k]):
