@@ -207,7 +207,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
             env.step(action)
 
             # take an optim step
-            if count_instances % count_step == 0 and count_memory > batch_size:
+            if count_instances % count_step == 0 and count_memory > size_memory:
                 batch_data = random.sample(replay_memory, batch_size)
                 batch_instances = collate_fn(batch_data)
                 # Compute the approximate values
