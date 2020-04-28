@@ -61,7 +61,6 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
     return list_losses
 
 
-
 def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_instances, update_target, count_step,
                         dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                         n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,

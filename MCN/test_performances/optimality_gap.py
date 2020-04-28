@@ -29,7 +29,7 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
         test_set_budget = []
         for k in range(n_budget):
             # generate a random instance
-            G, J, Omega, Phi, Lambda = generate_random_instance(
+            instance_budget_k = generate_random_instance(
                 n_free_min,
                 n_free_max,
                 d_edge_min,
@@ -39,14 +39,19 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
                 Lambda_max,
                 Budget_target=budget,
             )
+            G = instance_budget_k.G
+            Omega = instance_budget_k.Omega
+            Phi = instance_budget_k.Phi
+            Lambda = instance_budget_k.Lambda
+            J = instance_budget_k.J
             # if there is an attacker's move,
             # we empty J
             if Phi > 0:
                 J = []
             # solve the instance
             value, D, I, P = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
-            # save everything in the Instance object
-            instance_budget_k = Instance(G, Omega, Phi, Lambda, J, value)
+            # save the value in the Instance object
+            instance_budget_k.value = value
             # pushes it to memory
             if to_torch:
                 instance_budget_k = instance_to_torch(instance_budget_k)
