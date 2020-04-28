@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_rlxAP(S, V, E, Lambda, Phi):
+def solve_rlxAP(S, V, E, Lambda, Phi, J=[]):
 
     r"""Solve the relaxed Attack-Protect problem with budgets Lambda, Phi.
 
@@ -18,6 +18,8 @@ def solve_rlxAP(S, V, E, Lambda, Phi):
             protection budget
     Phi: int,
          attack budget
+    J: list of ints,
+       list of the vertices already attacked
 
     Returns:
     -------
@@ -75,6 +77,13 @@ def solve_rlxAP(S, V, E, Lambda, Phi):
                                      val = [1]*len(V))],
         senses = ["L"],
         rhs = [Phi])
+    ## y_v < 1-z_v for all v
+    for v in V:
+        rlxAP.linear_constraints.add(
+            lin_expr=[cplex.SparsePair(ind=["y_%d" % v], val=[1.0])],
+            senses=["L"],
+            rhs=[0.0 if v in J else 1.0],
+        )
     ## h_v + sum_(u,v) q_(u,v) - q_(v,u) > 1 for all v in V
     for v in V:
         edges_in = ["q_%d_%d"%(u,v) for (u,v1) in E if v1==v]
@@ -92,14 +101,14 @@ def solve_rlxAP(S, V, E, Lambda, Phi):
                 val = [1.0] + [-1.0]*len(edges_in))],
             senses = ["G"],
             rhs = [0.0])
-    ## gamma_v + |V|*y_v - h_v > 0 for all v in V
+    ## gamma_v + |V|*y_v - h_v > -|V|*z_v for all v in V
     for v in V:
         rlxAP.linear_constraints.add(
             lin_expr = [cplex.SparsePair(
                 ind = ["gamma_%d"%v, "y_%d"%v, "h_%d"%v],
                 val = [1.0, len(V), -1.0])],
             senses = ["G"],
-            rhs = [0.0])
+            rhs = [-len(V) if v in J else 0.0])
     ## p > 0
     rlxAP.linear_constraints.add(
         lin_expr = [cplex.SparsePair(ind = ["p"], val = [1.0])],

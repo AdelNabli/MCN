@@ -2,7 +2,7 @@ from MCN.MCN_exact.rlx_ap import solve_rlxAP
 from MCN.MCN_exact.defender import solve_defender
 
 
-def AP(V, E, Phi, Lambda, target):
+def AP(V, E, Phi, Lambda, target, J=[]):
 
     r"""Solve the Attack-Protection problem as described in the paper
     https://cerc-datascience.polymtl.ca/wp-content/uploads/2017/11/Technical-Report_DS4DM-2017-012.pdf
@@ -36,7 +36,7 @@ def AP(V, E, Phi, Lambda, target):
     # Initialization
     S = [list(V)]
     best = len(V)
-    I_best = []
+    I_best = J
     P = []
     P_best = []
 
@@ -44,7 +44,8 @@ def AP(V, E, Phi, Lambda, target):
 
         try:
             # if the problem is feasible
-            value, I = solve_rlxAP(S, V, E, Lambda, Phi)
+            value, I = solve_rlxAP(S, V, E, Lambda, Phi, J=J)
+            I += J
         except:
             # if not, we stop the loop
             break
