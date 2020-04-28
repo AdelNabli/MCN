@@ -34,7 +34,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             value, D, I, P = solve_mcn_exact(G, Omega, Phi, Lambda)
             return (value - Omega - Lambda, D, I, P)
         elif player == 1:
-            I, _, _ = AP(G.nodes(), G.edges(), Phi, Lambda, target=1)
+            I, _, _ = AP(G.nodes(), G.edges(), Phi, Lambda, target=1, J=J)
             value, _, P = solve_defender(I, G.nodes(), G.edges(), Lambda)
             return (value - Lambda, [], I, P)
         elif player == 2:
