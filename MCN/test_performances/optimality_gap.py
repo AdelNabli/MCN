@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from MCN.utils import generate_random_instance, Instance, instance_to_torch
+from MCN.utils import generate_random_instance, instance_to_torch
 from MCN.solve_mcn import solve_mcn
 
 
@@ -44,10 +44,6 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
             Phi = instance_budget_k.Phi
             Lambda = instance_budget_k.Lambda
             J = instance_budget_k.J
-            # if there is an attacker's move,
-            # we empty J
-            if Phi > 0:
-                J = []
             # solve the instance
             value, D, I, P = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
             # save the value in the Instance object
@@ -116,7 +112,10 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
                                                Lambda_max=Lambda_max, exact=False, list_experts=list_experts)
-            value_exact = instance.value
+            # re-add the defender's budget to the values
+            value_heuristic += instance.Omega + instance.Lambda
+            value_exact = instance.value + instance.Omega + instance.Lambda
+            # add the values to memory
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)
             if budget <= Lambda_max:
