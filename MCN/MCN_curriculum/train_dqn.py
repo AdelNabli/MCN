@@ -247,10 +247,10 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
                 if count_steps % update_target == 0:
                     target_net.load_state_dict(value_net.state_dict())
                     target_net.eval()
-                    # Saves model
-                    save_models(date_str, dict_args, value_net, optimizer, count_steps)
 
                 if count_steps % 200 == 0:
+                    # Saves model
+                    save_models(date_str, dict_args, value_net, optimizer, count_steps)
                     print(
                         " \n Instances: %2d/%2d" % (count_instances, n_instances),
                         " \n Loss of the current value net: %f" % float(loss),
