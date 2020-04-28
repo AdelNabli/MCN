@@ -596,7 +596,7 @@ def get_target_net(list_target_nets, Omega, Phi, Lambda, Omega_max, Phi_max, Lam
     return list_target_nets[target_id]
 
 
-def save_models(date_str, dict_args, value_net, optimizer, count, targets_experts):
+def save_models(date_str, dict_args, value_net, optimizer, count, targets_experts=None):
 
     """Saves the models and the hyperparameters
 
@@ -639,17 +639,19 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
         os.path.join(path,"value_net.tar"),
     )
     print("\nSaved models in " + path, '\n')
-    # create a directory for the experts
-    path = os.path.join(path,"experts")
-    if not os.path.exists(path):
-        os.mkdir(path)
-    # saves every expert in the list of experts
-    count = 0
-    for target_net in targets_experts.list_target_nets:
-        if target_net is not None:
-            name = os.path.join(path,"expert_" + str(count) + ".pt")
-            torch.save(target_net, name)
-            count += 1
+
+    if targets_experts is not None:
+        # create a directory for the experts
+        path = os.path.join(path,"experts")
+        if not os.path.exists(path):
+            os.mkdir(path)
+        # saves every expert in the list of experts
+        count = 0
+        for target_net in targets_experts.list_target_nets:
+            if target_net is not None:
+                name = os.path.join(path,"expert_" + str(count) + ".pt")
+                torch.save(target_net, name)
+                count += 1
 
 
 def load_saved_experts(path):

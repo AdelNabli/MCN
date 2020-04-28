@@ -126,124 +126,23 @@ class ContextEncoder(nn.Module):
         return context
 
 
-def softmax_n_heads(src, index):
-    out = src - torch.index_select(scatter_max(src, index, dim=1)[0], 1, index[0].view(-1).to(device))
-    out = out.exp()
-    out = out / (torch.index_select(scatter_add(out, index, dim=1), 1, index[0].view(-1)).to(device) + 1e-16)
-
-    return out
-
-
-class AttentionLayerDecoder(nn.Module):
-
-    def __init__(self, n_heads, dim_context, dim_embedding, dim_values):
-        super(AttentionLayerDecoder, self).__init__()
-
-        self.n_heads = n_heads
-        self.dim_values = dim_values
-
-        self.proj_query = nn.Parameter(torch.Tensor(n_heads, dim_context, dim_values)).to(device)
-        self.proj_keys = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values)).to(device)
-        self.proj_values = nn.Parameter(torch.Tensor(n_heads, dim_embedding + 4, dim_values)).to(device)
-        self.query_coef = nn.Parameter(torch.Tensor(1)).to(device)
-        self.proj_final = nn.Parameter(torch.Tensor(dim_values, dim_embedding)).to(device)
-
-        nn.init.xavier_uniform_(self.proj_query)
-        nn.init.xavier_uniform_(self.proj_keys)
-        nn.init.xavier_uniform_(self.proj_values)
-        nn.init.ones_(self.query_coef)
-        nn.init.xavier_uniform_(self.proj_final)
-
-    def forward(self, G_torch, context):
-        # retrieve the data
-        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
-        # compute the query, keys, values
-        query = torch.matmul(context, self.proj_query)  # size = (n_heads, Batch size, dim_values)
-        keys = torch.matmul(x, self.proj_keys)  # size = (n_heads, n_nodes in batch, dim_values)
-        values = torch.matmul(x, self.proj_values)  # size = (n_heads, n_nodes in batch, dim_values)
-        # transpose the query
-        query_t = torch.transpose(query, 1, 2)  # size = (n_heads, dim_values, Batch size)
-        # compute the dot product <query, keys>
-        u = torch.matmul(keys, query_t) * (
-                    1 / math.sqrt(self.dim_values))  # size = (n_heads, n_nodes in batch, Batch size)
-        # remove the useless dot products (e.g query of 1st graph in batch with nodes from the 2nd graph in batch)
-        indices_batch_n_heads = torch.cat([batch.view((1, -1, 1))] * self.n_heads)
-        u = torch.gather(u, 2, indices_batch_n_heads)  # size = (n_heads, n_nodes in batch, 1)
-        # compute the softmax coefficient
-        a = softmax_n_heads(u, indices_batch_n_heads)
-        # multiply the values with the coefficients
-        v = a * values
-        # the new context embedding is created
-        ids = torch.cat([indices_batch_n_heads] * self.dim_values, 2)
-        h = self.query_coef*query + torch.zeros(query.size()).to(device).scatter_add_(1, ids, v)
-        # project back to embedding space
-        h = torch.matmul(h, self.proj_final)
-        # add the results from each head
-        h = torch.sum(h, 0)  # size = (Batch size, dim_embedding)
-
-        return h
-
-
-class AttentionLayerValues(nn.Module):
-
-    def __init__(self, dim_embedding, dim_values):
-        super(AttentionLayerValues, self).__init__()
-
-        self.dim_values = dim_values
-
-        self.proj_query = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
-        self.proj_keys = nn.Parameter(torch.Tensor(dim_embedding + 4, dim_values)).to(device)
-        self.proj_values = nn.Parameter(torch.Tensor(dim_embedding, dim_values)).to(device)
-
-        nn.init.xavier_uniform_(self.proj_query)
-        nn.init.xavier_uniform_(self.proj_keys)
-        nn.init.xavier_uniform_(self.proj_values)
-
-    def forward(self, G_torch, context):
-        # retrieve the data
-        x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
-        # compute the query, keys, values
-        query = torch.matmul(context, self.proj_query)  # size = (Batch size, dim_values)
-        keys = torch.matmul(x, self.proj_keys)  # size = (n_nodes in batch, dim_values)
-        # transpose the query
-        query_t = torch.transpose(query, 0, 1)  # size = (dim_values, Batch size)
-        # compute the dot product <query, keys>
-        u = torch.matmul(keys, query_t) * (1 / math.sqrt(self.dim_values))  # size = (n_nodes in batch, Batch size)
-        # remove the useless dot products (e.g query of 1st graph in batch with nodes from the 2nd graph in batch)
-        indices_batch = batch.view((-1, 1))
-        u = torch.gather(u, 1, indices_batch)  # size = (n_nodes in batch, 1)
-        # put the score in [0,1]
-        score = torch.sigmoid(u)
-        # sum the scores for each afterstates
-        score_state = global_add_pool(score, batch).to(device)
-
-        return score_state
-
-
-class ValueNetAtt(nn.Module):
-
-    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha):
-        super(ValueNetAtt, self).__init__()
-
-        self.dim_context = dim_embedding * n_pool + 7
-        self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
-                                        dim_values, dim_hidden, K, alpha)
-        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden)
-        self.attention_layer_decoder = AttentionLayerDecoder(n_heads, self.dim_context, dim_embedding, dim_values)
-        self.attention_layer_values = AttentionLayerValues(dim_embedding, dim_values)
-
-    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
-                J, saved_nodes, infected_nodes, size_connected):
-
-        G = self.node_encoder(G_torch, J, saved_nodes, infected_nodes, size_connected)
-        context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
-        context = self.attention_layer_decoder(G, context)
-        values = self.attention_layer_values(G, context)
-
-        return values
-
-
 class ValueNet(nn.Module):
+    r"""The Value Network used in order to estimate the number of saved
+        nodes in the end given the current situation.
+
+        This is done in 4 steps:
+
+            - STEP 1 : compute a node embedding for each node
+            - STEP 2 : use the nodes embedding and some global
+                       information about the graphs to compute
+                       a graph embedding
+            - STEP 3 : use the graph embeddings, node embeddings
+                       and information about the nodes in order
+                       to compute a score for each node \in [0,1]
+                       (can be thought of as the probability of
+                       the node being saved in the end)
+            - STEP 4 : sum the scores of the nodes to obtain
+                       the value of the graph"""
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha, p):
         super(ValueNet, self).__init__()
@@ -264,6 +163,45 @@ class ValueNet(nn.Module):
 
     def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
                 J, saved_nodes, infected_nodes, size_connected):
+        """ Take a batch of states as input and returns a the values of each state.
+
+                Parameters:
+                ----------
+                G_torch: Pytorch Geometric batch data,
+                         Pytorch Geometric representation of the graphs G along
+                         with their node features
+                n_nodes: float tensor (size = Batch x 1)
+                         the number of nodes of each graph in the batch
+                Omegas: float tensor (size = Batch x 1),
+                        the budget omega for each graph in the batch
+                Phis: float tensor (size = Batch x 1),
+                      the budget phi for each graph in the batch
+                Lambdas: float tensor (size = Batch x 1),
+                         the budget Lambda for each graph in the batch
+                Omegas_norm: float tensor (size = Batch x 1),
+                             the normalized budget omega for each graph in the batch
+                Phis_norm: float tensor (size = Batch x 1),
+                           the normalized budget phi for each graph in the batch
+                Lambdas_norm: float tensor (size = Batch x 1),
+                              the normalized budget Lambda for each graph in the batch
+                J: float tensor (size = nb tot of nodes x 1),
+                   indicator 1_{node infected} for each node
+                   in each graph in the batch
+                saved_nodes: float tensor (size = nb tot of nodes x 1),
+                             indicator 1_{node currently saved} for each node
+                             in each graph in the batch
+                infected_nodes: float tensor (size = nb tot of nodes x 1),
+                                indicator 1_{node currently infected}
+                                for each node in each graph in the batch
+                size_connected: float tensor (size = nb tot of nodes x 1),
+                                size of the component component each node
+                                belongs to in each graph in the batch
+                                (normalized by the size of the graph)
+
+                Returns:
+                -------
+                score_state: float tensor (size = Batch x 1),
+                             score of each possible afterstate"""
 
         G = self.node_encoder(G_torch, J, saved_nodes, infected_nodes, size_connected)
         context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
