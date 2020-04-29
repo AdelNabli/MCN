@@ -571,6 +571,22 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
     return action, targets, value
 
 
+def take_action_dqn(target_net, player, next_player, rewards, next_afterstates,
+                    eps_end, eps_decay, eps_start, count_steps, **kwargs):
+
+    sample = random.random()
+    eps_threshold = eps_end + (eps_start - eps_end) * np.exp(-1. * count_steps / eps_decay)
+    if sample > eps_threshold:
+        return take_action_deterministic(target_net, player, next_player, rewards, next_afterstates, **kwargs)
+    else:
+        targets = rewards
+        n = targets.size()[0]
+        action = np.random.randint(0, n+1)
+        value = float(targets[action])
+
+        return action, targets, value
+
+
 def get_target_net(list_target_nets, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max):
     """Returns the expert specialized in the subtask determined by the value of the budgets
 
@@ -710,5 +726,43 @@ def count_param_NN(torch_module):
 
     return n_param
 
+
+def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
+
+    list_losses = []
+    with torch.no_grad():
+        for k in range(len(test_set_generators)):
+            target = []
+            val_approx = []
+            if list_experts is not None:
+                target_net = list_experts[k]
+                if target_net is None:
+                    break
+            elif value_net is not None:
+                target_net = value_net
+            for i_batch, batch_instances in enumerate(test_set_generators[k]):
+                values_approx = target_net(
+                    batch_instances.G_torch,
+                    batch_instances.n_nodes,
+                    batch_instances.Omegas,
+                    batch_instances.Phis,
+                    batch_instances.Lambdas,
+                    batch_instances.Omegas_norm,
+                    batch_instances.Phis_norm,
+                    batch_instances.Lambdas_norm,
+                    batch_instances.J,
+                    batch_instances.saved_nodes,
+                    batch_instances.infected_nodes,
+                    batch_instances.size_connected,
+                )
+                val_approx.append(values_approx)
+                target.append(batch_instances.target)
+            # Compute the loss
+            target = torch.cat(target)
+            val_approx = torch.cat(val_approx)
+            loss_target_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
+            list_losses.append(loss_target_net)
+
+    return list_losses
 
 

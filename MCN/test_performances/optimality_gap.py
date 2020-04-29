@@ -2,69 +2,8 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
-from MCN.utils import generate_random_instance, instance_to_torch
+from MCN.MCN_curriculum.data import generate_test_set
 from MCN.solve_mcn import solve_mcn
-
-
-def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                      size_test_set, to_torch=False):
-
-    """Generates a set of random instances that are solved exactly with the MCN_exact algorithm.
-    Each budget possible in [1, Omega_max + Phi_max + Lambda_max] is equally represented in
-    the test set. The dataset is then dumped in a .gz file inside the directory_path"""
-
-    # Initialize the variables
-    Budget_max = Omega_max + Phi_max + Lambda_max
-    # for each budget possible, generate the same number of instances
-    n_budget = size_test_set // Budget_max
-    test_set = []
-
-    print("==========================================================================")
-    print("Generates the test set... \n")
-
-    # for all budgets
-
-    for budget in tqdm(range(1, Budget_max + 1)):
-        # initialize the budget's instances list
-        test_set_budget = []
-        for k in range(n_budget):
-            # generate a random instance
-            instance_budget_k = generate_random_instance(
-                n_free_min,
-                n_free_max,
-                d_edge_min,
-                d_edge_max,
-                Omega_max,
-                Phi_max,
-                Lambda_max,
-                Budget_target=budget,
-            )
-            G = instance_budget_k.G
-            Omega = instance_budget_k.Omega
-            Phi = instance_budget_k.Phi
-            Lambda = instance_budget_k.Lambda
-            J = instance_budget_k.J
-            # solve the instance
-            value, D, I, P = solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
-            # save the value in the Instance object
-            instance_budget_k.value = value
-            # pushes it to memory
-            if to_torch:
-                instance_budget_k = instance_to_torch(instance_budget_k)
-            test_set_budget.append(instance_budget_k)
-        test_set.append(test_set_budget)
-
-    if not os.path.exists('data'):
-        os.mkdir('data')
-    path_test_data = os.path.join('data', 'test_data')
-    if not os.path.exists(path_test_data):
-        os.mkdir(path_test_data)
-    if to_torch:
-        file_path = os.path.join(path_test_data, "test_set_torch.gz")
-    else:
-        file_path = os.path.join(path_test_data, "test_set.gz")
-    # save the test set
-    pickle.dump(test_set, open(file_path, "wb"))
 
 
 def opt_gap(list_exact, list_approx):
@@ -82,16 +21,11 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
     # if the test set was not given
     if ".gz" not in path_test_set:
         # generate the test set in the 'data\test' directory
-        if not os.path.exists('data'):
-            os.mkdir('data')
-        path_test_data = os.path.join('data', 'test_data')
-        if not os.path.exists(path_test_data):
-            os.mkdir(path_test_data)
         generate_test_set(Omega_max=Omega_max,
                           Phi_max=Phi_max,
                           Lambda_max=Lambda_max,
                           **kwargs)
-        path_test_set = os.path.join(path_test_data, 'test_set.gz')
+        path_test_set = os.path.join('data', 'test_data', 'test_set.gz')
     test_set = pickle.load(open(path_test_set, "rb"))
 
     print("==========================================================================")
