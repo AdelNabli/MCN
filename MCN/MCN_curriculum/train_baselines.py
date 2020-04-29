@@ -248,7 +248,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             env.step(action)
 
             # perform an epoch over the replay memory
-            if count_instances % count_step == 0 and count_memory > batch_size:
+            if count_memory % count_step == 0 and count_memory > batch_size:
                 n_batch = size_memory // batch_size + 1 * (size_memory % batch_size > 0)
                 ids_batch = random.sample(range(size_memory), size_memory)
                 for i_batch in range(n_batch):
