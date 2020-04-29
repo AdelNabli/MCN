@@ -581,7 +581,7 @@ def take_action_dqn(target_net, player, next_player, rewards, next_afterstates,
     else:
         targets = rewards
         n = targets.size()[0]
-        action = np.random.randint(0, n+1)
+        action = np.random.randint(0, n)
         value = float(targets[action])
 
         return action, targets, value
