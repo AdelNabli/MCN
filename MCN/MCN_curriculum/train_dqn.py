@@ -145,7 +145,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
     ).to(device)
     target_net.load_state_dict(value_net.state_dict())
     target_net.eval()
-    target_net_test = ValueNet(
+    target_net_policy = ValueNet(
         dim_input=5,
         dim_embedding=dim_embedding,
         dim_values=dim_values,
@@ -187,8 +187,10 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
             current_instance = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
             instances_episode.append(current_instance)
             # Take an action
+            target_net_policy.load_state_dict(value_net.state_dict())
+            target_net_policy.eval()
             action, targets, value = take_action_dqn(
-                target_net,
+                target_net_policy,
                 env.player,
                 env.next_player,
                 env.next_rewards,
@@ -269,9 +271,9 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
                 # Compute the loss of the batch
                 loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_target) ** 2))
                 # compute the loss on the test set
-                target_net_test.load_state_dict(value_net.state_dict())
-                target_net_test.eval()
-                losses_test = compute_loss_test(test_set_generators, value_net=target_net_test)
+                target_net_policy.load_state_dict(value_net.state_dict())
+                target_net_policy.eval()
+                losses_test = compute_loss_test(test_set_generators, value_net=target_net_policy)
                 for k in range(len(losses_test)):
                     name_loss = 'Loss test budget ' + str(k+1)
                     writer.add_scalar(name_loss, float(losses_test[k]), count_steps)
