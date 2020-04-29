@@ -248,7 +248,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             env.step(action)
 
             # perform an epoch over the replay memory
-            if count_memory % count_step == 0 and count_memory > batch_size:
+            if count_instances % count_step == 0 and count_memory > batch_size:
                 memory_size = len(replay_memory)
                 n_batch = memory_size // batch_size + 1 * (memory_size % batch_size > 0)
                 ids_batch = random.sample(range(memory_size), memory_size)
@@ -306,13 +306,14 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                         target_net.load_state_dict(value_net.state_dict())
                         target_net.eval()
 
-                # Saves model
-                save_models(date_str, dict_args, value_net, optimizer, count_steps)
-                print(
-                    " \n Instances: %2d/%2d" % (count_instances, n_instances),
-                    " \n Loss of the current value net: %f" % float(loss),
-                    " \n Losses on test set : ", losses_test,
-                )
+                    # Saves model
+                    if count_steps % 200 == 0:
+                        save_models(date_str, dict_args, value_net, optimizer, count_steps)
+                        print(
+                            " \n Instances: %2d/%2d" % (count_instances, n_instances),
+                            " \n Loss of the current value net: %f" % float(loss),
+                            " \n Losses on test set : ", losses_test,
+                        )
 
         # transform the instances to instance torch
         for instance in instances_episode:
