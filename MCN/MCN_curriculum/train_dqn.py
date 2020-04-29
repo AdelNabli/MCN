@@ -222,7 +222,7 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
                 saved_nodes=env.next_saved_tensor,
                 infected_nodes=env.next_infected_tensor,
                 size_connected=env.next_size_connected_tensor,
-                target=torch.tensor(value),
+                target=torch.tensor(value).view([1,1]),
             )
             if len(memory_player) < size_memory:
                 memory_player.append(None)
