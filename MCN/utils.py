@@ -571,13 +571,13 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
     return action, targets, value
 
 
-def take_action_dqn(target_net, player, next_player, rewards, next_afterstates,
-                    eps_end, eps_decay, eps_start, count_steps, **kwargs):
+def sample_action(neural_net, player, next_player, rewards, next_afterstates,
+                  eps_end, eps_decay, eps_start, count_steps, **kwargs):
 
     sample = random.random()
     eps_threshold = eps_end + (eps_start - eps_end) * np.exp(-1. * count_steps / eps_decay)
     if sample > eps_threshold:
-        return take_action_deterministic(target_net, player, next_player, rewards, next_afterstates, **kwargs)
+        return take_action_deterministic(neural_net, player, next_player, rewards, next_afterstates, **kwargs)
     else:
         targets = rewards
         n = targets.size()[0]
