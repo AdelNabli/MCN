@@ -18,7 +18,7 @@ from MCN.utils import (
 from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
 from MCN.MCN_curriculum.environment import Environment
 from MCN.MCN_curriculum.value_nn import ValueNet
-from torch_geometric.utils import scatter_
+from torch_scatter import scatter_max, scatter_min
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,16 +57,16 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
         batch_instances.infected_nodes,
         batch_instances.size_connected,
     )[:,0]
-    targets_approx_min = scatter_('min', values_approx, id_graph_approx)
-    targets_approx_max = scatter_('max', values_approx, id_graph_approx)
+    targets_approx_min = scatter_min(values_approx, id_graph_approx)
+    targets_approx_max = scatter_max(values_approx, id_graph_approx)
 
     values_exact = [targets[k] for k in range(n) if mask_exact[k]]
     id_graph_exact = torch.tensor(
         [i for i in range(len(values_exact)) for k in range(values_exact[i].size()[0])]
     ).to(device)
     values_exact = torch.cat(values_exact)[:,0]
-    targets_exact_min = scatter_('min', values_exact, id_graph_exact)
-    targets_exact_max = scatter_('max', values_exact, id_graph_exact)
+    targets_exact_min = scatter_min(values_exact, id_graph_exact)
+    targets_exact_max = scatter_max(values_exact, id_graph_exact)
 
     targets = torch.tensor([0]*n, dtype=torch.float).to(device)
     targets[mask_exact][mask_exact_min] = targets_exact_min[mask_exact_min]
