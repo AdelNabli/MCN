@@ -265,7 +265,8 @@ def train_value_net_dqn(batch_size, size_memory, size_test_data, lr, betas, n_in
                 players = [memory_player[k] for k in id_batch]
                 next_players = [memory_next_player[k] for k in id_batch]
                 # compute the target for the batch
-                batch_target = compute_targets_dqn(target_net, instances_batch, targets_batch, players, next_players)
+                #batch_target = compute_targets_dqn(target_net, instances_batch, targets_batch, players, next_players)
+                batch_target = batch_instances.target[:,0]
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
