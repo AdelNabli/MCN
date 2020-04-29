@@ -27,6 +27,11 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
 
     n = len(instances_batch)
 
+    print('players : ', players)
+    print('next players : ', next_players)
+    print('targets : ', targets)
+    print('n : ', n)
+
     players_torch = torch.tensor(players)
     next_players_torch = torch.tensor(next_players)
     mask_approx = next_players_torch.le(2)
@@ -38,12 +43,19 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     mask_exact_min = players_exact.eq(1)
     mask_exact_max = torch.logical_not(mask_exact_min)
 
+    print('mask_exact : ', mask_exact)
+    print('mask_exact_min :', mask_exact_min)
+    print('mask_exact_max :', mask_exact_max)
+    print('mask approx : ', mask_approx)
+    print('mask approx max : ', mask_approx_max)
+    print('mask approx min : ', mask_approx_min)
+
     instances_torch = [instances_batch[k] for k in range(n) if mask_approx[k]]
     id_graph_approx = torch.tensor(
         [i for i in range(len(instances_torch)) for k in range(len(instances_torch[i].G_torch))]
     ).to(device)
     batch_instances = collate_fn(instances_torch, for_dqn=True)
-    values_approx =  target_net(
+    values_approx = target_net(
         batch_instances.G_torch,
         batch_instances.n_nodes,
         batch_instances.Omegas,
@@ -57,8 +69,12 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
         batch_instances.infected_nodes,
         batch_instances.size_connected,
     )[:,0]
+    print('values approx : ', values_approx, values_approx.size())
+    print('id graph approx :', id_graph_approx, id_graph_approx.size())
     targets_approx_min = scatter_min(values_approx, id_graph_approx)
     targets_approx_max = scatter_max(values_approx, id_graph_approx)
+    print('targets approx min : ', targets_approx_min, targets_approx_min.size())
+    print('targets approx max : ', targets_approx_max, targets_approx_max.size())
 
     values_exact = [targets[k] for k in range(n) if mask_exact[k]]
     id_graph_exact = torch.tensor(
@@ -67,6 +83,11 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     values_exact = torch.cat(values_exact)[:,0]
     targets_exact_min = scatter_min(values_exact, id_graph_exact)
     targets_exact_max = scatter_max(values_exact, id_graph_exact)
+
+    print('values exact: ', values_exact, values_exact.size())
+    print('id graph exact :', id_graph_exact, id_graph_exact.size())
+    print('targets exact min : ', targets_exact_min, targets_exact_min.size())
+    print('targets exact max : ', targets_exact_max, targets_exact_max.size())
 
     targets = torch.tensor([0]*n, dtype=torch.float).to(device)
     targets[mask_exact][mask_exact_min] = targets_exact_min[mask_exact_min]
