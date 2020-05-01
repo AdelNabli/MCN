@@ -78,7 +78,7 @@ class NodeEncoder(nn.Module):
         if self.weighted:
             # add the weights and the normalized weights to the features to consider
             weights = G_torch.weight.view([-1,1])
-            weights_sum = global_add_pool(weights, batch).to_device()
+            weights_sum = global_add_pool(weights, batch)
             weights_norm = weights / weights_sum[batch]
             h = torch.cat([h, weights, weights_norm], 1)
         # project the features into a dim_embedding vector space
