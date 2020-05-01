@@ -1,8 +1,6 @@
 import torch
-import math
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_add, scatter_max
 from torch_geometric.nn import GlobalAttention, APPNP, global_add_pool, GATConv, BatchNorm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -80,7 +78,7 @@ class NodeEncoder(nn.Module):
         if self.weighted:
             # add the weights and the normalized weights to the features to consider
             weights = G_torch.weight.view([-1,1])
-            weights_sum = scatter_add(weights, batch).to_device()
+            weights_sum = global_add_pool(weights, batch).to_device()
             weights_norm = weights / weights_sum[batch]
             h = torch.cat([h, weights, weights_norm], 1)
         # project the features into a dim_embedding vector space
