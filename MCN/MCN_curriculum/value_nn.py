@@ -92,7 +92,7 @@ class NodeEncoder(nn.Module):
         h = torch.cat([h, size_connected, J, saved_nodes, infected_nodes], 1)
         # if we are considering weighted graphs
         if self.weighted:
-            h = torch.cat([h, weights, weights_norm, saved_nodes*weights, infected_nodes*weights], 1)
+            h = torch.cat([h, weights_norm, saved_nodes*weights_norm, infected_nodes*weights_norm], 1)
         G_torch.x = h
 
         return G_torch
@@ -106,7 +106,7 @@ class ContextEncoder(nn.Module):
         self.weighted = weighted
         if weighted:
             # there are 8 features that are added to the input data
-            first_dim = dim_embedding + 8
+            first_dim = dim_embedding + 7
         else:
             # else, only 4 features are added
             first_dim = dim_embedding + 4
@@ -176,13 +176,14 @@ class ValueNet(nn.Module):
                  n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):
         super(ValueNet, self).__init__()
 
+        self.weighted = weighted
         self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
                                         dim_values, dim_hidden, K, alpha, weighted)
         self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden, weighted)
         # Score for each node
         if weighted:
             dim_context = dim_embedding * n_pool + 8
-            first_dim = dim_context + dim_embedding + 8
+            first_dim = dim_context + dim_embedding + 7
         else:
             dim_context = dim_embedding * n_pool + 7
             first_dim = dim_context + dim_embedding + 4
@@ -253,6 +254,8 @@ class ValueNet(nn.Module):
         score = self.lin3(score)
         # put the score in [0,1]
         score = torch.sigmoid(score)
+        if self.weighted:
+            score = score * G_torch.weight.view([-1,1])
         # sum the scores for each afterstates
         score_state = global_add_pool(score, batch).to(device)
 
