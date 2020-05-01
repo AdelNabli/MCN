@@ -39,7 +39,7 @@ def solve_mcn_exact(graph, Omega, Phi, Lambda):
         target = best - len(D)
         # remove the vaccinated nodes from the graph
         Graph.remove_nodes_from(D)
-        I, status, P = AP(Graph.nodes(), Graph.edges(), Phi, Lambda, target)
+        I, status, P, _ = AP(Graph.nodes(), Graph.edges(), Phi, Lambda, target)
 
         if status == "opt":
             return (best, D, I, P)

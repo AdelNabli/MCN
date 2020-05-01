@@ -51,12 +51,12 @@ def AP(V, E, Phi, Lambda, target, J=[]):
             break
 
         if value <= target - 1:
-            return (I, "goal", P)
+            return (I, "goal", P, value)
 
         len_S, new_S, P = solve_defender(I, V, E, Lambda)
 
         if len_S <= target - 1:
-            return (I, "goal", P)
+            return (I, "goal", P, len_S)
 
         if len_S < best:
 
@@ -65,4 +65,4 @@ def AP(V, E, Phi, Lambda, target, J=[]):
             I_best = I
 
         S.append(new_S)
-    return (I_best, "opt", P_best)
+    return (I_best, "opt", P_best, best)

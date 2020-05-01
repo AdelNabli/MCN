@@ -16,7 +16,7 @@ class TargetExperts(object):
     """Object containing the target nets and updating them during learning"""
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha,
-                 weighted, Omega_max, Phi_max, Lambda_max, path_experts, path_data):
+                 weighted, Omega_max, Phi_max, Lambda_max, path_experts, path_data, exact_protection):
 
         # Initialize the parameters of the neural network
         self.dim_input = dim_input
@@ -35,6 +35,11 @@ class TargetExperts(object):
         self.losses_validation_sets = [math.inf] * (self.n_max - 1)
         self.loss_value_net = math.inf
         self.Budget_target = 1
+        # If use the exact algorithm for protection, update the parameters
+        self.exact_protection = exact_protection
+        if exact_protection:
+            self.losses_validation_sets[:Lambda_max] = [0] * Lambda_max
+            self.Budget_target = Lambda_max + 1
 
         self.resume_training(path_experts, path_data)
 
@@ -52,8 +57,9 @@ class TargetExperts(object):
 
             # If there is a data folder
             if path_data is not None:
+                Budget_begin = 1 + self.exact_protection * self.Lambda_max
                 # for every budget already trained
-                for Budget in range(1, Budget_trained + 1):
+                for Budget in range(Budget_begin, Budget_trained + 1):
                     path_val_data_budget = os.path.join(path_data, 'val_data', 'data_' + str(Budget) + '.gz')
                     # we check whether there is a validation set available
                     if os.path.exists(path_val_data_budget):

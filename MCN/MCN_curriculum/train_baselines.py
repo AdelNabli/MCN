@@ -186,7 +186,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
         env = Environment(instance.G, instance.Omega, instance.Phi, instance.Lambda, J=instance.J)
         # Init the list of instances for the episode
         instances_episode = []
-        if resume_training == 'DQN':
+        if training_method == 'DQN':
             player_episode = []
             next_player_episode = []
             next_state_episode = []

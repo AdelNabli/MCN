@@ -5,7 +5,8 @@ from MCN.MCN_curriculum.mcn_heuristic import solve_mcn_heuristic
 from MCN.utils import get_player
 
 
-def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0, exact=False, list_experts=[]):
+def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
+              exact=False, list_experts=[], exact_protection=False):
     """Solve the mcn instance given with the chosen method:
      - either the exact one and we apply the procedure described in
        https://cerc-datascience.polymtl.ca/wp-content/uploads/2017/11/Technical-Report_DS4DM-2017-012.pdf
@@ -34,13 +35,12 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             value, D, I, P = solve_mcn_exact(G, Omega, Phi, Lambda)
             return (value - Omega - Lambda, D, I, P)
         elif player == 1:
-            I, _, _ = AP(G.nodes(), G.edges(), Phi, Lambda, target=1, J=J)
-            value, _, P = solve_defender(I, G.nodes(), G.edges(), Lambda)
+            I, _, P, value = AP(G.nodes(), G.edges(), Phi, Lambda, target=1, J=J)
             return (value - Lambda, [], I, P)
         elif player == 2:
             value, _, P = solve_defender(J, G.nodes(), G.edges(), Lambda)
             return (value - Lambda, [], [], P)
     else:
         return solve_mcn_heuristic(
-            list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=J
+            list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=J, exact_protection=exact_protection
         )

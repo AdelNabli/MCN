@@ -1,4 +1,5 @@
 import os
+import re
 import numpy as np
 import torch
 import networkx as nx
@@ -701,15 +702,18 @@ def load_saved_experts(path):
     list_experts = []
     if os.path.isdir(path):
         # for everything in the directory
-        for f in os.listdir(path):
+        list_files = os.listdir(path)
+        max_budget = int(re.findall(r'\d+', list_files[-1])[0])
+        list_experts = [None] * (max_budget + 1)
+        for f in list_files:
             expert_path = os.path.join(path, f)
-            # if the thing is a file
-            if os.path.isfile(expert_path) and ".pt" in expert_path:
-                # load the model
-                expert = torch.load(expert_path)
-                expert.eval()
-                # append the model to the list
-                list_experts.append(expert)
+            # load the model
+            expert = torch.load(expert_path)
+            expert.eval()
+            # get the expert's budget
+            budget = int(re.findall(r'\d+', expert_path)[0])
+            # append the model to the list
+            list_experts[budget] = expert
     else:
         raise ValueError("no directory found at given path")
 
@@ -754,32 +758,33 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
             val_approx = []
             if list_experts is not None:
                 target_net = list_experts[k]
-                if target_net is None:
-                    break
             elif value_net is not None:
                 target_net = value_net
-            for i_batch, batch_instances in enumerate(test_set_generators[k]):
-                values_approx = target_net(
-                    batch_instances.G_torch,
-                    batch_instances.n_nodes,
-                    batch_instances.Omegas,
-                    batch_instances.Phis,
-                    batch_instances.Lambdas,
-                    batch_instances.Omegas_norm,
-                    batch_instances.Phis_norm,
-                    batch_instances.Lambdas_norm,
-                    batch_instances.J,
-                    batch_instances.saved_nodes,
-                    batch_instances.infected_nodes,
-                    batch_instances.size_connected,
-                )
-                val_approx.append(values_approx)
-                target.append(batch_instances.target)
-            # Compute the loss
-            target = torch.cat(target)
-            val_approx = torch.cat(val_approx)
-            loss_target_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
-            list_losses.append(loss_target_net)
+            if target_net is None:
+                list_losses.append(0)
+            else:
+                for i_batch, batch_instances in enumerate(test_set_generators[k]):
+                    values_approx = target_net(
+                        batch_instances.G_torch,
+                        batch_instances.n_nodes,
+                        batch_instances.Omegas,
+                        batch_instances.Phis,
+                        batch_instances.Lambdas,
+                        batch_instances.Omegas_norm,
+                        batch_instances.Phis_norm,
+                        batch_instances.Lambdas_norm,
+                        batch_instances.J,
+                        batch_instances.saved_nodes,
+                        batch_instances.infected_nodes,
+                        batch_instances.size_connected,
+                    )
+                    val_approx.append(values_approx)
+                    target.append(batch_instances.target)
+                # Compute the loss
+                target = torch.cat(target)
+                val_approx = torch.cat(val_approx)
+                loss_target_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
+                list_losses.append(loss_target_net)
 
     return list_losses
 
