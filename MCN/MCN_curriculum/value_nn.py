@@ -77,7 +77,7 @@ class NodeEncoder(nn.Module):
         # if we are considering weighted graphs
         if self.weighted:
             # add the weights and the normalized weights to the features to consider
-            weights = G_torch.weight.view([-1,1])
+            weights = G_torch.weight.view([-1,1]).type(dtype=torch.float)
             weights_sum = global_add_pool(weights, batch)
             weights_norm = weights / weights_sum[batch]
             h = torch.cat([h, weights, weights_norm], 1)
