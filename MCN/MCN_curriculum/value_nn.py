@@ -103,6 +103,7 @@ class ContextEncoder(nn.Module):
     def __init__(self, n_pool, dim_embedding, dim_hidden, weighted):
         super(ContextEncoder, self).__init__()
 
+        self.weighted = weighted
         if weighted:
             # there are 6 features that are added to the input data
             first_dim = dim_embedding + 6
@@ -145,6 +146,10 @@ class ContextEncoder(nn.Module):
             Phis_norm,
             Lambdas_norm,
         ], 1)
+        if self.weighted:
+            weights = G_torch.weight.view([-1, 1]).type(dtype=torch.float)
+            weights_sum = global_add_pool(weights, batch)
+            context = torch.cat([context, weights_sum], 1)
 
         return context
 
@@ -171,14 +176,15 @@ class ValueNet(nn.Module):
                  n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):
         super(ValueNet, self).__init__()
 
-        dim_context = dim_embedding * n_pool + 7
         self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
                                         dim_values, dim_hidden, K, alpha, weighted)
         self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden, weighted)
         # Score for each node
         if weighted:
+            dim_context = dim_embedding * n_pool + 8
             first_dim = dim_context + dim_embedding + 6
         else:
+            dim_context = dim_embedding * n_pool + 7
             first_dim = dim_context + dim_embedding + 4
         self.lin1 = nn.Linear(first_dim, dim_hidden)
         self.BN1 = BatchNorm(dim_hidden)
