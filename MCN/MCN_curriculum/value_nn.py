@@ -55,7 +55,7 @@ class NodeEncoder(nn.Module):
         self.weighted = weighted
         if weighted:
             # there are 4 features that are added to the input data
-            first_dim = dim_input + 4
+            first_dim = dim_input + 3
         else:
             # else, only 2 features are added
             first_dim = dim_input + 2
@@ -80,7 +80,7 @@ class NodeEncoder(nn.Module):
             weights = G_torch.weight.view([-1,1]).type(dtype=torch.float)
             weights_sum = global_add_pool(weights, batch)
             weights_norm = weights / weights_sum[batch]
-            h = torch.cat([h, weights, weights_norm], 1)
+            h = torch.cat([h, weights_norm], 1)
         # project the features into a dim_embedding vector space
         h = self.Lin1(h)
         # apply the attention layers
