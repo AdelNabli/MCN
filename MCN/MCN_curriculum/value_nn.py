@@ -92,7 +92,7 @@ class NodeEncoder(nn.Module):
         h = torch.cat([h, size_connected, J, saved_nodes, infected_nodes], 1)
         # if we are considering weighted graphs
         if self.weighted:
-            h = torch.cat([h, weights, weights_norm], 1)
+            h = torch.cat([h, weights, weights_norm, saved_nodes*weights, infected_nodes*weights], 1)
         G_torch.x = h
 
         return G_torch
@@ -105,8 +105,8 @@ class ContextEncoder(nn.Module):
 
         self.weighted = weighted
         if weighted:
-            # there are 6 features that are added to the input data
-            first_dim = dim_embedding + 6
+            # there are 8 features that are added to the input data
+            first_dim = dim_embedding + 8
         else:
             # else, only 4 features are added
             first_dim = dim_embedding + 4
@@ -182,7 +182,7 @@ class ValueNet(nn.Module):
         # Score for each node
         if weighted:
             dim_context = dim_embedding * n_pool + 8
-            first_dim = dim_context + dim_embedding + 6
+            first_dim = dim_context + dim_embedding + 8
         else:
             dim_context = dim_embedding * n_pool + 7
             first_dim = dim_context + dim_embedding + 4
