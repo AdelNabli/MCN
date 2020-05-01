@@ -16,7 +16,7 @@ class TargetExperts(object):
     """Object containing the target nets and updating them during learning"""
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha,
-                 Omega_max, Phi_max, Lambda_max, path_experts, path_data):
+                 weighted, Omega_max, Phi_max, Lambda_max, path_experts, path_data):
 
         # Initialize the parameters of the neural network
         self.dim_input = dim_input
@@ -28,6 +28,7 @@ class TargetExperts(object):
         self.n_heads = n_heads
         self.K = K
         self.alpha = alpha
+        self.weighted = weighted
         # Initialize the parameters of the list of experts
         self.n_max = Omega_max + Phi_max + Lambda_max
         self.list_target_nets = [None] * (self.n_max - 1)
@@ -89,6 +90,7 @@ class TargetExperts(object):
             K=self.K,
             alpha=self.alpha,
             p=0,
+            weighted=self.weighted,
         ).to(device)
         new_target_net.load_state_dict(value_net.state_dict())
         new_target_net.eval()

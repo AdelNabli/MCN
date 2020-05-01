@@ -80,8 +80,8 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
 def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas, n_instances, update_target, count_step,
                              eps_end, eps_decay, eps_start,
                              dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-                             n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                             num_workers=0, resume_training=False, path_train="", path_test_data=None,
+                             n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
+                             w_max=1, num_workers=0, resume_training=False, path_train="", path_test_data=None,
                              training_method='MC'):
 
     # Gather the hyperparameters
@@ -117,6 +117,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
         K=n_max,
         alpha=alpha,
         p=p,
+        weighted=weighted,
     ).to(device)
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
@@ -144,6 +145,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
         K=n_max,
         alpha=alpha,
         p=p,
+        weighted=weighted,
     ).to(device)
     target_net.load_state_dict(value_net.state_dict())
     target_net.eval()
@@ -158,6 +160,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
         K=n_max,
         alpha=alpha,
         p=p,
+        weighted=weighted,
     ).to(device)
     # generate the test set
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
@@ -176,11 +179,18 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             Phi_max,
             Lambda_max,
             Budget_target=max_budget,
+            weighted=weighted,
+            w_max=w_max,
         )
         # Initialize the environment
         env = Environment(instance.G, instance.Omega, instance.Phi, instance.Lambda, J=instance.J)
         # Init the list of instances for the episode
         instances_episode = []
+        if resume_training == 'DQN':
+            player_episode = []
+            next_player_episode = []
+            next_state_episode = []
+            targets_episode = []
         # Unroll the episode
         while env.Budget >= 1:
             # update the environment
@@ -233,15 +243,10 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                     size_connected=env.next_size_connected_tensor,
                     target=torch.tensor(value).view([1,1]),
                 )
-                if len(memory_player) < size_memory:
-                    memory_player.append(None)
-                    memory_next_player.append(None)
-                    memory_next_state.append(None)
-                    memory_targets.append(None)
-                memory_player[count_instances % size_memory] = env.player
-                memory_next_player[count_instances % size_memory] = env.next_player
-                memory_next_state[count_instances % size_memory] = next_instance_torch
-                memory_targets[count_instances % size_memory] = targets
+                player_episode.append(env.player)
+                next_player_episode.append(env.next_player)
+                next_state_episode.append(next_instance_torch)
+                targets_episode.append(targets)
 
             count_instances += 1
             # Update the environment
@@ -280,7 +285,8 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                         players = [memory_player[k] for k in id_batch]
                         next_players = [memory_next_player[k] for k in id_batch]
                         # compute the target for the batch
-                        batch_target = compute_targets_dqn(target_net, instances_batch, targets_batch, players, next_players)
+                        batch_target = compute_targets_dqn(target_net, instances_batch, targets_batch,
+                                                           players, next_players)
                     else:
                         batch_target = batch_instances.target[:, 0]
                     # Init the optimizer
@@ -315,11 +321,22 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                             " \n Losses on test set : ", losses_test,
                         )
 
-        # transform the instances to instance torch
-        for instance in instances_episode:
+        # add the instances from the episode to memory
+        for k in range(len(instances_episode)):
+            instance = instances_episode[k]
             instance.value = value
             instance_torch = instance_to_torch(instance)
             if len(replay_memory) < size_memory:
                 replay_memory.append(None)
+                if training_method == 'DQN':
+                    memory_player.append(None)
+                    memory_next_player.append(None)
+                    memory_next_state.append(None)
+                    memory_targets.append(None)
             replay_memory[count_memory % size_memory] = instance_torch
+            if training_method == 'DQN':
+                memory_player[count_memory % size_memory] = player_episode[k]
+                memory_next_player[count_memory % size_memory] = next_player_episode[k]
+                memory_next_state[count_memory % size_memory] = next_state_episode[k]
+                memory_targets[count_memory % size_memory] = targets_episode[k]
             count_memory += 1

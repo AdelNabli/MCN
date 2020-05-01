@@ -104,7 +104,7 @@ def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False
 
 
 def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
-                             Omega_max, Phi_max, Lambda_max, Budget_target=np.nan):
+                             Omega_max, Phi_max, Lambda_max, Budget_target=np.nan, weighted=False, w_max=1):
     r"""Generate a random instance of the MCN problem corresponding
     to the stage of the training we are in if Budget_target is defined.
     Else, we generate a random instance of the MCN problem.
@@ -136,6 +136,10 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
                    the total budget we are considering
                    at this stage of the training procedure
                    (\in [1, Omega_max+Phi_max+Lambda_max])
+    weighted: bool,
+              whether to create weights for the nodes or not
+    w_max: int,
+           the maximum weight a node can have
 
     Returns:
     -------
@@ -220,6 +224,10 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
     # Generate the attack
     I = list(np.random.choice(range(n), Phi_attacked, replace=False))
     G = nx.convert_node_labels_to_integers(G)
+    # Generate the weights
+    if weighted:
+        for node in G.nodes():
+            G.nodes[node]['weight'] = random.randint(1, w_max)
     # Create the instance
     instance = Instance(G, Omega, Phi, Lambda, I, value=0)
 
@@ -382,7 +390,7 @@ def new_graph(G, action):
 
 
 def compute_saved_nodes(G, I):
-    """Compute the number of saved node given a graph and
+    """Compute the values of the saved node given a graph and
     a list of attacked nodes.
 
     Parameters:
@@ -393,19 +401,24 @@ def compute_saved_nodes(G, I):
 
     Returns:
     -------
-    n_saved: int,
-             the number of saved nodes"""
+    value: int,
+             the values of the saved nodes"""
 
     # insure G is undirected
     G1 = G.to_undirected()
-    n_saved = 0
+    value = 0
+    is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
     for c in nx.connected_components(G1):
         # a connected component is saved if
         # it doesn't countain any attacked node
         if set(I).intersection(c) == set():
-            n_saved += len(c)
+            if is_weighted:
+                for node in c:
+                    value += G1.nodes[node]['weight']
+            else:
+                value += len(c)
 
-    return n_saved
+    return value
 
 
 def features_connected_comp(G, I):
@@ -420,8 +433,8 @@ def features_connected_comp(G, I):
 
     Returns:
     -------
-    n_saved: int,
-             the number of saved nodes
+    value: int,
+           the value of the saved nodes
     J_tensor: float tensor,
               indicator 1_{node \in I}
     indic_saved: float tensor,
@@ -437,10 +450,11 @@ def features_connected_comp(G, I):
     # insure G is undirected
     G1 = G.to_undirected()
     # Initialize the variables
-    n_saved = 0
+    value = 0
     connected_infected = set()
     connected_saved = set()
     size_connected = [1] * n
+    is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
 
     for c in nx.connected_components(G1):
         size_c = len(c)
@@ -451,7 +465,11 @@ def features_connected_comp(G, I):
         # a connected component is saved if
         # there is not any attacked node inside it
         if set(I).intersection(c) == set():
-            n_saved += size_c
+            if is_weighted:
+                for node in c:
+                    value += G1.nodes[node]['weight']
+            else:
+                value += size_c
             connected_saved = connected_saved.union(c)
         else:
             connected_infected = connected_infected.union(c)
@@ -474,7 +492,7 @@ def features_connected_comp(G, I):
         torch.tensor(size_connected, dtype=torch.float).view([n, 1]).to(device)
     )
 
-    return (n_saved, J_tensor, indic_saved, indic_infected, size_connected_tensor)
+    return (value, J_tensor, indic_saved, indic_infected, size_connected_tensor)
 
 
 def get_player(Omega, Phi, Lambda):

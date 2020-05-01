@@ -2,6 +2,7 @@ import os
 import pickle
 import numpy as np
 from tqdm import tqdm
+from MCN.utils import Instance
 from MCN.MCN_curriculum.data import generate_test_set
 from MCN.solve_mcn import solve_mcn
 

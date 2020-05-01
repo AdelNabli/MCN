@@ -13,7 +13,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch,
                     dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-                    n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
+                    n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max=1,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="", path_test_data=None):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
@@ -112,6 +112,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
         K=n_max,
         alpha=alpha,
         p=p,
+        weighted=weighted,
     ).to(device)
     # Initialize the pool of experts (target nets)
     targets_experts = TargetExperts(
@@ -124,6 +125,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
         n_pool=n_pool,
         K=n_max,
         alpha=alpha,
+        weighted=weighted,
         Omega_max=Omega_max,
         Phi_max=Phi_max,
         Lambda_max=Lambda_max,
@@ -162,6 +164,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
             Omega_max,
             Phi_max,
             Lambda_max,
+            weighted,
+            w_max,
             targets_experts.Budget_target,
             targets_experts.list_target_nets,
             path_data,

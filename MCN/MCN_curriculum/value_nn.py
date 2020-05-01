@@ -50,11 +50,19 @@ class AttentionLayer(nn.Module):
 
 class NodeEncoder(nn.Module):
 
-    def __init__(self, dim_input, n_heads, n_att_layers, dim_embedding, dim_values, dim_hidden, K, alpha):
+    def __init__(self, dim_input, n_heads, n_att_layers, dim_embedding, dim_values, dim_hidden, K, alpha, weighted):
         super(NodeEncoder, self).__init__()
 
+        # if the graph is weighted
+        self.weighted = weighted
+        if weighted:
+            # there are 4 features that are added to the input data
+            first_dim = dim_input + 4
+        else:
+            # else, only 2 features are added
+            first_dim = dim_input + 2
         self.n_att_layers = n_att_layers
-        self.Lin1 = nn.Linear(dim_input + 2, dim_embedding)
+        self.Lin1 = nn.Linear(first_dim, dim_embedding)
         self.attention_layers = nn.ModuleList(
             [
                 AttentionLayer(n_heads, dim_embedding, dim_values, dim_hidden) for k in range(n_att_layers)
@@ -68,6 +76,13 @@ class NodeEncoder(nn.Module):
         x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
         # gather together the node features with J and size_connected
         h = torch.cat([x, J, size_connected], 1)
+        # if we are considering weighted graphs
+        if self.weighted:
+            # add the weights and the normalized weights to the features to consider
+            weights = G_torch.weight.view([-1,1])
+            weights_sum = scatter_add(weights, batch).to_device()
+            weights_norm = weights / weights_sum[batch]
+            h = torch.cat([h, weights, weights_norm], 1)
         # project the features into a dim_embedding vector space
         h = self.Lin1(h)
         # apply the attention layers
@@ -77,6 +92,9 @@ class NodeEncoder(nn.Module):
         h = self.power(h, edge_index)
         # re-add the information about the node's state
         h = torch.cat([h, size_connected, J, saved_nodes, infected_nodes], 1)
+        # if we are considering weighted graphs
+        if self.weighted:
+            h = torch.cat([h, weights, weights_norm], 1)
         G_torch.x = h
 
         return G_torch
@@ -84,17 +102,24 @@ class NodeEncoder(nn.Module):
 
 class ContextEncoder(nn.Module):
 
-    def __init__(self, n_pool, dim_embedding, dim_hidden):
+    def __init__(self, n_pool, dim_embedding, dim_hidden, weighted):
         super(ContextEncoder, self).__init__()
+
+        if weighted:
+            # there are 6 features that are added to the input data
+            first_dim = dim_embedding + 6
+        else:
+            # else, only 4 features are added
+            first_dim = dim_embedding + 4
 
         self.n_pool = n_pool
         self.graph_pool = nn.ModuleList(
             [
                 GlobalAttention(
-                    nn.Sequential(nn.Linear(dim_embedding + 4, dim_hidden),
+                    nn.Sequential(nn.Linear(first_dim, dim_hidden),
                                   nn.ReLU(),
                                   nn.Linear(dim_hidden, 1)),
-                    nn.Sequential(nn.Linear(dim_embedding + 4, dim_hidden),
+                    nn.Sequential(nn.Linear(first_dim, dim_hidden),
                                   nn.ReLU(),
                                   nn.Linear(dim_hidden, dim_embedding)))
                 for k in range(n_pool)
@@ -144,15 +169,20 @@ class ValueNet(nn.Module):
             - STEP 4 : sum the scores of the nodes to obtain
                        the value of the graph"""
 
-    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha, p):
+    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden,
+                 n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):
         super(ValueNet, self).__init__()
 
         dim_context = dim_embedding * n_pool + 7
         self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
-                                        dim_values, dim_hidden, K, alpha)
-        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden)
+                                        dim_values, dim_hidden, K, alpha, weighted)
+        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden, weighted)
         # Score for each node
-        self.lin1 = nn.Linear(dim_context + dim_embedding + 4, dim_hidden)
+        if weighted:
+            first_dim = dim_context + dim_embedding + 6
+        else:
+            first_dim = dim_context + dim_embedding + 4
+        self.lin1 = nn.Linear(first_dim, dim_hidden)
         self.BN1 = BatchNorm(dim_hidden)
         self.lin2 = nn.Linear(dim_hidden, dim_embedding)
         self.BN2 = BatchNorm(dim_embedding)

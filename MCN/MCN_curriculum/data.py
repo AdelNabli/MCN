@@ -57,7 +57,7 @@ def collate_fn(list_instances, for_dqn=False):
 
 
 def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
-                         d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, Budget,
+                         d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, Budget,
                          list_experts, path_data, solve_exact=False):
 
     print("\n==========================================================================")
@@ -97,6 +97,8 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
             Phi_max,
             Lambda_max,
             Budget,
+            weighted,
+            w_max,
         )
         # Solves the mcn problem
         value, _, _, _ = solve_mcn(
@@ -219,26 +221,26 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
 
 def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                          size_test_set, path_test_data, batch_size, num_workers):
-
-    if path_test_data is None:
-        generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max - 1, Phi_max, Lambda_max,
-                          size_test_set, to_torch=True)
-        path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
-    else:
-        path_test_set = path_test_data
-    # load the test set
-    test_set = pickle.load(open(path_test_set, "rb"))
-    # create a dataloader object for each dataset in the test set
     test_set_generators = []
-    for k in range(len(test_set)):
-        test_set_k = MCNDataset(test_set[k])
-        test_gen_k = DataLoader(
-            test_set_k,
-            collate_fn=collate_fn,
-            batch_size=batch_size,
-            shuffle=True,
-            num_workers=num_workers,
-        )
-        test_set_generators.append(test_gen_k)
+    if size_test_set > 0 :
+        if path_test_data is None:
+            generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max - 1, Phi_max, Lambda_max,
+                              size_test_set, to_torch=True)
+            path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
+        else:
+            path_test_set = path_test_data
+        # load the test set
+        test_set = pickle.load(open(path_test_set, "rb"))
+        # create a dataloader object for each dataset in the test set
+        for k in range(len(test_set)):
+            test_set_k = MCNDataset(test_set[k])
+            test_gen_k = DataLoader(
+                test_set_k,
+                collate_fn=collate_fn,
+                batch_size=batch_size,
+                shuffle=True,
+                num_workers=num_workers,
+            )
+            test_set_generators.append(test_gen_k)
 
     return test_set_generators
