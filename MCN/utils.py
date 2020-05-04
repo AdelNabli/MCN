@@ -110,6 +110,7 @@ def generate_random_graph(n_nodes, density, directed=False, is_tree=False, seed=
         else:
             graph_1 = graph_0
     graph_2 = nx.DiGraph()
+    graph_2.add_nodes_from(graph_0.nodes())
     graph_2.add_edges_from([(u, v) for (u, v) in graph_0.edges()])
     graph_2.add_edges_from([(v, u) for (u, v) in graph_1.edges()])
 
