@@ -143,8 +143,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
     # generate the test set
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
-                                               Lambda_max, directed, size_test_data, path_test_data, batch_size,
-                                               num_workers)
+                                               Lambda_max, weighted, w_max, directed, size_test_data, path_test_data,
+                                               batch_size, num_workers)
 
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 

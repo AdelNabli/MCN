@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_rlxAP(S, V, E, Lambda, Phi, J=[]):
+def solve_rlxAP(S, G, Lambda, Phi, J=[]):
 
     r"""Solve the relaxed Attack-Protect problem with budgets Lambda, Phi.
 
@@ -9,11 +9,7 @@ def solve_rlxAP(S, V, E, Lambda, Phi, J=[]):
     ----------
     S: list of lists,
        S[t] being the list of saved nodes at iteration t
-    V: list of ints,
-       list of the vertices of the graph
-    E: list of tuples of ints,
-       list of the edges of the graph
-       if (v,u) \in E, then (u,v) must be too
+    G: networkx graph,
     Lambda: int,
             protection budget
     Phi: int,
@@ -27,6 +23,18 @@ def solve_rlxAP(S, V, E, Lambda, Phi, J=[]):
        ids of the nodes to attack
     value: int,
            number of saved nodes with the attack I"""
+    # Gather the list of nodes and edges of the graph
+    V = list(G.nodes())
+    E = list(G.edges())
+    # Create a dict of weights
+    w = dict()
+    for v in V:
+        # if the graph is weighted, gather the weights
+        if 'weight' in G.node[v].keys():
+            w[v] = float(G.node[v]['weight'])
+        # else, all weights are 1
+        else:
+            w[v] = 1.0
 
     # Initialize the optimization problem
 
@@ -93,7 +101,7 @@ def solve_rlxAP(S, V, E, Lambda, Phi, J=[]):
                 ind = ["h_%d"%v] + edges_in + edges_out,
                 val = [1.0] + [1.0]*len(edges_in) + [-1.0]*len(edges_out))],
             senses = ["G"],
-            rhs = [1.0])
+            rhs = [w[v]])
     ## p - sum_(u,v) q_(u,v) > 0 for all v in V
         rlxAP.linear_constraints.add(
             lin_expr = [cplex.SparsePair(

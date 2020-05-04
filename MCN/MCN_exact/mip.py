@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_mip(Q, V, E, Lambda, Omega):
+def solve_mip(Q, G, Lambda, Omega):
 
     r"""Find the best vaccination strategy for the subset of attacks Q and with budgets Lambda, Omega.
 
@@ -26,6 +26,19 @@ def solve_mip(Q, V, E, Lambda, Omega):
        nodes to vaccinate
     best: int,
           number of saved nodes with the vaccination D"""
+
+    # Gather the list of nodes and edges of the graph
+    V = list(G.nodes())
+    E = list(G.edges())
+    # Create a dict of weights
+    w = dict()
+    for v in V:
+        # if the graph is weighted, gather the weights
+        if 'weight' in G.node[v].keys():
+            w[v] = float(G.node[v]['weight'])
+        # else, all weights are 1
+        else:
+            w[v] = 1.0
 
     # Initialize the optimization problem
 
@@ -80,7 +93,7 @@ def solve_mip(Q, V, E, Lambda, Omega):
             lin_expr=[
                 cplex.SparsePair(
                     ind=["Delta"] + ["alpha_%d_%d" % (v, id_y) for v in V],
-                    val=[1.0] + [-1.0] * len(V),
+                    val=[1.0] + [-w[v] for v in V],
                 )
             ],
             senses=["L"],

@@ -1,6 +1,7 @@
 import os
 import pickle
 import numpy as np
+import networkx as nx
 from tqdm import tqdm
 from MCN.utils import Instance
 from MCN.MCN_curriculum.data import generate_test_set
@@ -47,9 +48,14 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
                                                Lambda_max=Lambda_max, exact=False, list_experts=list_experts)
-            # re-add the defender's budget to the values
-            value_heuristic += instance.Omega + instance.Lambda
-            value_exact = instance.value + instance.Omega + instance.Lambda
+            # re-add the values of the nodes removed with the defender's moves
+            is_weighted = len(nx.get_node_attributes(instance.G, 'weight').values()) != 0
+            if is_weighted:
+                weights = np.array([instance.G.nodes[node]['weight'] for node in instance.G.nodes()])
+            else:
+                weights = np.ones(len(instance.G))
+            value_heuristic += np.sum(weights[instance.D]) + np.sum(weights[instance.P])
+            value_exact = instance.value + np.sum(weights[instance.D]) + np.sum(weights[instance.P])
             # add the values to memory
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)

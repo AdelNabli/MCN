@@ -256,7 +256,7 @@ class Instance:
 
     """Creates an instance object to store the parameters defining an instance"""
 
-    def __init__(self, G, Omega, Phi, Lambda, J, value):
+    def __init__(self, G, Omega, Phi, Lambda, J, value, D=None, P=None):
         """
         Parameters:
         ----------
@@ -270,7 +270,11 @@ class Instance:
         Lambda: int,
                 the budget allocated to the protector
         value: int,
-               if known, the value of the instance"""
+               if known, the value of the instance
+        D: list of ints,
+           the list of saved nodes
+        P: list of ints,
+           list of protected nodes"""
 
         self.G = G
         self.Omega = Omega
@@ -278,6 +282,8 @@ class Instance:
         self.Lambda = Lambda
         self.J = J
         self.value = value
+        self.D = D
+        self.P = P
 
 
 class InstanceTorch:

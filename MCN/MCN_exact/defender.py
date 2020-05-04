@@ -1,7 +1,7 @@
 import cplex
 
 
-def solve_defender(I, V, E, Lambda):
+def solve_defender(I, G, Lambda):
 
     r"""Solve the Defender problem under attack I with budget Lambda.
 
@@ -9,11 +9,7 @@ def solve_defender(I, V, E, Lambda):
     ----------
     I: list of ints,
        contains the ids of the attacked nodes
-    V: list of ints,
-       list of the vertices of the graph
-    E: list of tuples of ints,
-       list of the edges of the graph
-       if (v,u) \in E, then (u,v) must be too
+    G: networkx graph
     Lambda: int,
             protection budget
 
@@ -26,6 +22,18 @@ def solve_defender(I, V, E, Lambda):
     value: int,
            number of saved nodes with the attack I"""
 
+    # Gather the list of nodes and edges of the graph
+    V = list(G.nodes())
+    E = list(G.edges())
+    # Create a dict of weights
+    w = dict()
+    for v in V:
+        # if the graph is weighted, gather the weights
+        if 'weight' in G.node[v].keys():
+            w[v] = float(G.node[v]['weight'])
+        # else, all weights are 1
+        else:
+            w[v] = 1.0
     # Initialize the optimization problem
 
     ## create the cplex model
@@ -45,7 +53,7 @@ def solve_defender(I, V, E, Lambda):
     ## alpha_v: There are |V| continuous variables
     for v in V:
         Defender.variables.add(
-            obj=[1], types=[Defender.variables.type.continuous], names=["alpha_%d" % v]
+            obj=[w[v]], types=[Defender.variables.type.continuous], names=["alpha_%d" % v]
         )
     ## x_v: There are |V| binary variables
     for v in V:

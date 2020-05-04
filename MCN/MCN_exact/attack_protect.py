@@ -2,18 +2,14 @@ from MCN.MCN_exact.rlx_ap import solve_rlxAP
 from MCN.MCN_exact.defender import solve_defender
 
 
-def AP(V, E, Phi, Lambda, target, J=[]):
+def AP(G, Phi, Lambda, target, J=[]):
 
     r"""Solve the Attack-Protection problem as described in the paper
     https://cerc-datascience.polymtl.ca/wp-content/uploads/2017/11/Technical-Report_DS4DM-2017-012.pdf
 
     Parameters:
     ----------
-    V: list of ints,
-       list of the vertices of the graph
-    E: list of tuples of ints,
-       list of the edges of the graph
-       if (v,u) \in E, then (u,v) must be too
+    G: networkx graph,
     Lambda: int,
             protection budget
     Phi: int,
@@ -34,8 +30,16 @@ def AP(V, E, Phi, Lambda, target, J=[]):
        list of the ids of the protected nodes"""
 
     # Initialization
+    V = G.nodes()
     S = [list(V)]
-    best = len(V)
+    best = 0
+    for v in V:
+        # if the graph is weighted, best = sum_v weight_v
+        if 'weight' in G.node[v].keys():
+            best += float(G.node[v]['weight'])
+        # else, best = len(V)
+        else:
+            best += 1.0
     I_best = J
     P = []
     P_best = []
@@ -44,7 +48,7 @@ def AP(V, E, Phi, Lambda, target, J=[]):
 
         try:
             # if the problem is feasible
-            value, I = solve_rlxAP(S, V, E, Lambda, Phi, J=J)
+            value, I = solve_rlxAP(S, G, Lambda, Phi, J=J)
             I += J
         except:
             # if not, we stop the loop
@@ -53,7 +57,7 @@ def AP(V, E, Phi, Lambda, target, J=[]):
         if value <= target - 1:
             return (I, "goal", P, value)
 
-        len_S, new_S, P = solve_defender(I, V, E, Lambda)
+        len_S, new_S, P = solve_defender(I, G, Lambda)
 
         if len_S <= target - 1:
             return (I, "goal", P, len_S)

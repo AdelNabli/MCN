@@ -31,19 +31,31 @@ def solve_mcn_exact(graph, Omega, Phi, Lambda):
 
     # Initialization
     Q = []
-    best = len(graph.nodes())
+    best = 0
+    is_weighted = False
+    for v in graph.nodes():
+        # if the graph is weighted, best = sum_v weight_v
+        if 'weight' in graph.node[v].keys():
+            best += float(graph.node[v]['weight'])
+            is_weighted = True
+        # else, best = len(V)
+        else:
+            best += 1.0
     D = []
 
     while True:
         Graph = graph.copy()
-        target = best - len(D)
+        if is_weighted:
+            target = best - sum([graph.node[v]['weight'] for v in D])
+        else:
+            target = best - len(D)
         # remove the vaccinated nodes from the graph
         Graph.remove_nodes_from(D)
-        I, status, P, _ = AP(Graph.nodes(), Graph.edges(), Phi, Lambda, target)
+        I, status, P, _ = AP(Graph, Phi, Lambda, target)
 
         if status == "opt":
             return (best, D, I, P)
 
         elif status == "goal":
             Q.append(I)
-            best, D = solve_mip(Q, graph.nodes(), graph.edges(), Lambda, Omega)
+            best, D = solve_mip(Q, graph, Lambda, Omega)
