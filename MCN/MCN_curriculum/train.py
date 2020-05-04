@@ -13,7 +13,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch,
                     dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-                    n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max=1,
+                    n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
+                    weighted, w_max=1, directed=False,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="",
                     path_test_data=None, exact_protection=False):
 
@@ -142,7 +143,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
     # generate the test set
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
-                                               Lambda_max, size_test_data, path_test_data, batch_size, num_workers)
+                                               Lambda_max, directed, size_test_data, path_test_data, batch_size,
+                                               num_workers)
 
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 
@@ -168,6 +170,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
             Lambda_max,
             weighted,
             w_max,
+            directed,
             targets_experts.Budget_target,
             targets_experts.list_target_nets,
             path_data,

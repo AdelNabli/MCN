@@ -57,7 +57,7 @@ def collate_fn(list_instances, for_dqn=False):
 
 
 def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
-                         d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, Budget,
+                         d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, directed, Budget,
                          list_experts, path_data, solve_exact=False, exact_protection=False):
 
     print("\n==========================================================================")
@@ -99,6 +99,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
             Budget,
             weighted,
             w_max,
+            directed,
         )
         # Solves the mcn problem
         value, _, _, _ = solve_mcn(
@@ -160,7 +161,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
 
 
 def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                      size_test_set, to_torch=False):
+                      directed, size_test_set, to_torch=False):
 
     """Generates a set of random instances that are solved exactly with the MCN_exact algorithm.
     Each budget possible in [1, Omega_max + Phi_max + Lambda_max] is equally represented in
@@ -191,6 +192,7 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
                 Phi_max,
                 Lambda_max,
                 Budget_target=budget,
+                directed=directed,
             )
             G = instance_budget_k.G
             Omega = instance_budget_k.Omega
@@ -221,12 +223,12 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
 
 
 def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-                         size_test_set, path_test_data, batch_size, num_workers):
+                         directed, size_test_set, path_test_data, batch_size, num_workers):
     test_set_generators = []
     if size_test_set > 0 :
         if path_test_data is None:
             generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max - 1, Phi_max, Lambda_max,
-                              size_test_set, to_torch=True)
+                              directed, size_test_set, to_torch=True)
             path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
         else:
             path_test_set = path_test_data

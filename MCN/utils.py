@@ -66,7 +66,7 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
     plt.show()
 
 
-def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False):
+def generate_random_graph(n_nodes, density, directed=False, is_tree=False, seed=None, draw=False):
     r"""Generate a random graph with the desired number of nodes and density.
     Draw the graph if asked. Returns the graph as a networkx object.
 
@@ -76,6 +76,8 @@ def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False
              number of nodes
     density: float (\in [0,1]),
              density of edges
+    directed: bool,
+              whether or not the graph is directed
     is_tree: bool,
              whether to generate a tree or not
     seed: int,
@@ -87,25 +89,39 @@ def generate_random_graph(n_nodes, density, is_tree=False, seed=None, draw=False
     -------
     graph: networkx Digraph"""
 
+    # if we want to generate a directed graph, we generate two undirected graphs
+    # of the same size and assemble them in one single directed graph by saying the
+    # vertices of the first are in the direction left -> right and the inverse for the second
+
     # Compute the number of edges corresponding to the given density
     n_edges = int(density * n_nodes * (n_nodes - 1) / 2)
     # Create the graph
+    seed_1 = None if seed is None else seed + 1
     if is_tree:
-        graph = nx.random_tree(n_nodes, seed=seed)
+        graph_0 = nx.random_tree(n_nodes, seed=seed)
+        if directed:
+            graph_1 = nx.random_tree(n_nodes, seed=seed_1)
+        else:
+            graph_1 = graph_0
     else:
-        graph = nx.gnm_random_graph(n_nodes, n_edges, seed)
-    # Add the edge (v,u) for each edge (u,v) of the graph
-    graph_2 = nx.DiGraph(graph)
-    graph_2.add_edges_from([(v, u) for (u, v) in graph.edges()])
+        graph_0 = nx.gnm_random_graph(n_nodes, n_edges, seed)
+        if directed:
+            graph_1 = nx.gnm_random_graph(n_nodes, n_edges, seed_1)
+        else:
+            graph_1 = graph_0
+    graph_2 = nx.DiGraph()
+    graph_2.add_edges_from([(u, v) for (u, v) in graph_0.edges()])
+    graph_2.add_edges_from([(v, u) for (u, v) in graph_1.edges()])
 
     if draw:
-        plot_graph(graph, color_type="fabulous")
+        plot_graph(graph_2, color_type="fabulous")
 
     return graph_2
 
 
 def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
-                             Omega_max, Phi_max, Lambda_max, Budget_target=np.nan, weighted=False, w_max=1):
+                             Omega_max, Phi_max, Lambda_max, Budget_target=np.nan,
+                             weighted=False, w_max=1, directed=False):
     r"""Generate a random instance of the MCN problem corresponding
     to the stage of the training we are in if Budget_target is defined.
     Else, we generate a random instance of the MCN problem.
@@ -220,7 +236,7 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
     for k in range(n_comp):
         n_k = partition[k + 1] - partition[k]
         d_k = d_edge_min + (d_edge_max - d_edge_min)*np.random.random()
-        G_k = generate_random_graph(n_k, d_k, draw=False)
+        G_k = generate_random_graph(n_k, d_k, directed=directed, draw=False)
         G = nx.union(G, G_k, rename=("G-", "H-"))
     # Generate the attack
     I = list(np.random.choice(range(n), Phi_attacked, replace=False))
@@ -347,7 +363,7 @@ def graph_torch(G_networkx):
     G_torch: Pytorch Geometric Data object"""
 
     # transform the networkx object to pytorch geometric data
-    G_torch = from_networkx(G_networkx.to_undirected()).to(device)
+    G_torch = from_networkx(G_networkx).to(device)
     G_torch.edge_index = G_torch.edge_index.type(torch.LongTensor).to(device)
     # Add features
     with torch.no_grad():
@@ -405,19 +421,29 @@ def compute_saved_nodes(G, I):
     value: int,
              the values of the saved nodes"""
 
-    # insure G is undirected
-    G1 = G.to_undirected()
-    value = 0
+    n = len(G)
+    connected_infected = set()
     is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
-    for c in nx.connected_components(G1):
-        # a connected component is saved if
-        # it doesn't countain any attacked node
-        if set(I).intersection(c) == set():
-            if is_weighted:
-                for node in c:
-                    value += G1.nodes[node]['weight']
-            else:
-                value += len(c)
+    is_directed = False in [(v, u) in G.edges() for (u, v) in G.edges()]
+    # Gather the weights
+    if is_weighted:
+        weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
+    else:
+        weights = np.ones(n)
+    # Compute the infected nodes in the directed case
+    if is_directed:
+        for node in G.nodes():
+            connected = set(u for u in nx.dfs_preorder_nodes(G, node))
+            if node in I:
+                connected_infected = connected_infected.union(connected)
+    else:
+        # insure G is undirected
+        G1 = G.to_undirected()
+        for c in nx.connected_components(G1):
+            if set(I).intersection(c) != set():
+                connected_infected = connected_infected.union(c)
+
+    value = np.sum(weights[list(set(G.nodes()) - connected_infected)])
 
     return value
 
@@ -448,42 +474,52 @@ def features_connected_comp(G, I):
                            (divided by the size of G)"""
 
     n = len(G)
-    # insure G is undirected
-    G1 = G.to_undirected()
     # Initialize the variables
     value = 0
     connected_infected = set()
-    connected_saved = set()
     size_connected = [1] * n
     is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
-
-    for c in nx.connected_components(G1):
-        size_c = len(c)
-        # update the vector of size of the connected comp
-        for node in c:
-            # we normalize the size by the total size of the graph
-            size_connected[node] = size_c / n
-        # a connected component is saved if
-        # there is not any attacked node inside it
-        if set(I).intersection(c) == set():
-            if is_weighted:
-                for node in c:
-                    value += G1.nodes[node]['weight']
-            else:
+    is_directed = False in [(v, u) in G.edges() for (u, v) in G.edges()]
+    # Gather the weights
+    if is_weighted:
+        weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
+        sum_weights = np.sum(weights)
+    else:
+        weights = np.ones(n)
+        sum_weights = n
+    # Compute the features in the directed case
+    if is_directed:
+        for node in G.nodes():
+            connected = set(u for u in nx.dfs_preorder_nodes(G, node))
+            size_connected[node] = np.sum(weights[list(connected)]) / sum_weights
+            if node in I:
+                connected_infected = connected_infected.union(connected)
+        value = np.sum(weights[list(set(G.nodes()) - connected_infected)])
+    else:
+        # insure G is undirected
+        G1 = G.to_undirected()
+        for c in nx.connected_components(G1):
+            size_c = np.sum(weights[list(c)])
+            # update the vector of size of the connected comp
+            for node in c:
+                # we normalize the size by the total size of the graph
+                size_connected[node] = size_c / sum_weights
+            # a connected component is saved if
+            # there is not any attacked node inside it
+            if set(I).intersection(c) == set():
                 value += size_c
-            connected_saved = connected_saved.union(c)
-        else:
-            connected_infected = connected_infected.union(c)
+            else:
+                connected_infected = connected_infected.union(c)
 
     # transform the variables to tensor
     # init the tensors
     J_tensor = np.zeros(n)
-    indic_saved = np.zeros(n)
+    indic_saved = np.ones(n)
     indic_infected = np.zeros(n)
     # compute the one hot encoding
     J_tensor[I] = 1
-    indic_saved[list(connected_saved)] = 1
     indic_infected[list(connected_infected)] = 1
+    indic_saved -= indic_infected
     J_tensor = torch.tensor(J_tensor, dtype=torch.float).view([n, 1]).to(device)
     indic_saved = torch.tensor(indic_saved, dtype=torch.float).view([n, 1]).to(device)
     indic_infected = (
