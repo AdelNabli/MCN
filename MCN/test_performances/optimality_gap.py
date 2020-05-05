@@ -21,12 +21,38 @@ def opt_gap(list_exact, list_approx):
     return gap
 
 
-def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts,
-                           exact_protection=False, path_test_set="", **kwargs):
+def print_opt_gap(Omega_max, Phi_max, Lambda_max, og_mean, og_budget, og_player):
+
+    """Print the optimality gaps computed with the compute_optimality_gap function"""
+
+    # print the average optimality gap
+    print("average optimality gap : %f %%" % (og_mean * 100))
+    # print the optimality gap for each budget
+    for k in range(Omega_max + Phi_max + Lambda_max):
+        budget = k + 1
+        if budget <= Lambda_max:
+            print("optimality gap for instances with budget Omega = 0, Phi = 0 , Lambda = %d : %f %%" % (
+            budget, og_budget[k] * 100))
+        elif budget <= Lambda_max + Phi_max:
+            print("optimality gap for instances with budget Omega = 0, Phi = %d , Lambda \in [0, %d] : %f %%" % (
+            budget - Lambda_max, Lambda_max, og_budget[k] * 100))
+        elif budget > Lambda_max + Phi_max:
+            print(
+                "optimality gap for instances with budget Omega = %d, Phi \in [1, %d] , Lambda \in [0, %d] : %f %%" % (
+                budget - Lambda_max - Phi_max, Phi_max, Lambda_max, og_budget[k] * 100))
+    # print the optimality gap of each player
+    print("optimality gap for the vaccinator : %f %%" % (og_player[0] * 100))
+    print("optimality gap for the attacker : %f %%" % (og_player[1] * 100))
+    print("optimality gap for the protector : %f %%" % (og_player[2] * 100))
+
+
+def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_protection=False,
+                           path_test_set="", return_computation=False, **kwargs):
 
     """Compute the optimality gap on a test set of exactly solved instances.
-    Return the average optimality over all the test sets,
-    the list of optimality gaps for each player and for each learning stage."""
+    print the average optimality over all the test sets,
+    the optimality gaps for each player and for each learning stage.
+    Return the results of the computation if return_computation is set to True"""
 
     # if the test set was not given
     if ".gz" not in path_test_set:
@@ -93,4 +119,7 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts,
     tot_val_true = [value for k in range(first_budget, len(test_set)) for value in budget_values_true[k]]
     opt_gap_mean = opt_gap(tot_val_true, tot_val_approx)
 
-    return(opt_gap_mean, opt_gap_budget, opt_gap_player)
+    print_opt_gap(Omega_max, Phi_max, Lambda_max, opt_gap_mean, opt_gap_budget, opt_gap_player)
+
+    if return_computation:
+        return(opt_gap_mean, opt_gap_budget, opt_gap_player)
