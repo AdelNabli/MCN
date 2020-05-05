@@ -1,7 +1,9 @@
-from MCN.solve_mcn import solve_mcn
+import networkx as nx
+import numpy as np
 from MCN.MCN_curriculum.environment import Environment
 from MCN.utils import get_target_net, take_action_deterministic, get_player
-
+from MCN.MCN_exact.attack_protect import AP
+from MCN.MCN_exact.defender import solve_defender
 
 def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protection):
 
@@ -54,7 +56,15 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
     player = get_player(Omega, Phi, Lambda)
     # if it's the protector turn and we are to use the exact protector agent
     if player == 2 and exact_protection:
-        return solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
+        is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
+        # Gather the weights
+        if is_weighted:
+            weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
+        else:
+            weights = np.ones(len(G))
+        value, _, P = solve_defender(J, G, Lambda)
+        val_P = np.sum(weights[P])
+        return value - val_P, [], J, P
     else:
         # Initialize the environment
         env = Environment(G, Omega, Phi, Lambda, J=J)
@@ -67,7 +77,15 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
             if env.Budget == Lambda + 1 and exact_protection:
                 J_att = env.list_J[env.action]
                 G_att = env.list_G_nx[env.action]
-                value, _, I, P = solve_mcn(G_att, Omega=0, Phi=1, Lambda=Lambda, J=J_att, exact=True)
+                is_weighted = len(nx.get_node_attributes(G_att, 'weight').values()) != 0
+                # Gather the weights
+                if is_weighted:
+                    weights = np.array([G_att.nodes[node]['weight'] for node in G_att.nodes()])
+                else:
+                    weights = np.ones(len(G_att))
+                I, _, P, value = AP(G_att, 1, Lambda, target=1, J=J_att)
+                val_P = np.sum(weights[P])
+                value -= val_P
                 actions_episode += I + P
                 break
 
