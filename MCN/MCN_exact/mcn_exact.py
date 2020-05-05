@@ -35,8 +35,8 @@ def solve_mcn_exact(graph, Omega, Phi, Lambda):
     is_weighted = False
     for v in graph.nodes():
         # if the graph is weighted, best = sum_v weight_v
-        if 'weight' in graph.node[v].keys():
-            best += float(graph.node[v]['weight'])
+        if 'weight' in graph.nodes[v].keys():
+            best += float(graph.nodes[v]['weight'])
             is_weighted = True
         # else, best = len(V)
         else:
@@ -46,7 +46,7 @@ def solve_mcn_exact(graph, Omega, Phi, Lambda):
     while True:
         Graph = graph.copy()
         if is_weighted:
-            target = best - sum([graph.node[v]['weight'] for v in D])
+            target = best - sum([graph.nodes[v]['weight'] for v in D])
         else:
             target = best - len(D)
         # remove the vaccinated nodes from the graph

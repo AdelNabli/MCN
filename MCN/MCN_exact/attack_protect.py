@@ -35,8 +35,8 @@ def AP(G, Phi, Lambda, target, J=[]):
     best = 0
     for v in V:
         # if the graph is weighted, best = sum_v weight_v
-        if 'weight' in G.node[v].keys():
-            best += float(G.node[v]['weight'])
+        if 'weight' in G.nodes[v].keys():
+            best += float(G.nodes[v]['weight'])
         # else, best = len(V)
         else:
             best += 1.0

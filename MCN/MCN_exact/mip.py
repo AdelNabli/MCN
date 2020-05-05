@@ -30,8 +30,8 @@ def solve_mip(Q, G, Lambda, Omega):
     w = dict()
     for v in V:
         # if the graph is weighted, gather the weights
-        if 'weight' in G.node[v].keys():
-            w[v] = float(G.node[v]['weight'])
+        if 'weight' in G.nodes[v].keys():
+            w[v] = float(G.nodes[v]['weight'])
         # else, all weights are 1
         else:
             w[v] = 1.0
