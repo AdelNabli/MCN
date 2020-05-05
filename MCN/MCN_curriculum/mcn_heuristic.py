@@ -1,7 +1,6 @@
+from MCN.solve_mcn import solve_mcn
 from MCN.MCN_curriculum.environment import Environment
 from MCN.utils import get_target_net, take_action_deterministic, get_player
-from MCN.MCN_exact.defender import solve_defender
-from MCN.MCN_exact.attack_protect import AP
 
 
 def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protection):
@@ -55,9 +54,7 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
     player = get_player(Omega, Phi, Lambda)
     # if it's the protector turn and we are to use the exact protector agent
     if player == 2 and exact_protection:
-        # we return the exact solution
-        value, _, P = solve_defender(J, G.nodes(), G.edges(), Lambda)
-        return (value - Lambda, [], [], P)
+        return solve_mcn(G, Omega, Phi, Lambda, J=J, exact=True)
     else:
         # Initialize the environment
         env = Environment(G, Omega, Phi, Lambda, J=J)
@@ -68,10 +65,9 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
 
             # if the next player is the protector and we use the exact first attack
             if env.Budget == Lambda + 1 and exact_protection:
-                J_att = env.next_list_J[env.action]
-                G_att = env.next_list_G_nx[env.action]
-                I, _, P, value = AP(G_att.nodes(), G_att.edges(), Phi, Lambda, target=1, J=J_att)
-                value = value - Lambda
+                J_att = env.list_J[env.action]
+                G_att = env.list_G_nx[env.action]
+                value, _, I, P = solve_mcn(G_att, Omega=0, Phi=1, Lambda=Lambda, J=J_att, exact=True)
                 actions_episode += I + P
                 break
 
