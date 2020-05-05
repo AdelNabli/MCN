@@ -220,13 +220,15 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
             instance_budget_k.value = value
             instance_budget_k.D = D
             instance_budget_k.P = P
-            test_set_budget.append(instance_budget_k)
             # pushes it to memory
-            if to_torch:
+            test_set_budget.append(instance_budget_k)
+            # if we want to save the corresponding InstanceTorch
+            # to evaluate the training, we stop at Budget_max - 1
+            if to_torch and budget < Budget_max:
                 instance_budget_k_torch = instance_to_torch(instance_budget_k)
                 test_set_budget_torch.append(instance_budget_k_torch)
         test_set.append(test_set_budget)
-        if to_torch:
+        if to_torch and budget < Budget_max:
             test_set_torch.append(test_set_budget_torch)
 
     if not os.path.exists('data'):
@@ -251,7 +253,7 @@ def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_m
     test_set_generators = []
     if size_test_set > 0 :
         if path_test_data is None:
-            generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max - 1, Phi_max, Lambda_max,
+            generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                               weighted, w_max, directed, size_test_set, to_torch=True)
             path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
         else:
