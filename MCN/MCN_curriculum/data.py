@@ -181,9 +181,9 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
 
     # Initialize the variables
     Budget_max = Omega_max + Phi_max + Lambda_max
-    # for each budget possible, generate the same number of instances
-    n_budget = size_test_set // Budget_max
     test_set = []
+    if to_torch:
+        test_set_torch = []
 
     print("==========================================================================")
     print("Generates the test set... \n")
@@ -192,7 +192,9 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
     for budget in tqdm(range(1, Budget_max + 1)):
         # initialize the budget's instances list
         test_set_budget = []
-        for k in range(n_budget):
+        if to_torch:
+            test_set_budget_torch = []
+        for k in range(size_test_set):
             # generate a random instance
             instance_budget_k = generate_random_instance(
                 n_free_min,
@@ -218,23 +220,27 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
             instance_budget_k.value = value
             instance_budget_k.D = D
             instance_budget_k.P = P
+            test_set_budget.append(instance_budget_k)
             # pushes it to memory
             if to_torch:
-                instance_budget_k = instance_to_torch(instance_budget_k)
-            test_set_budget.append(instance_budget_k)
+                instance_budget_k_torch = instance_to_torch(instance_budget_k)
+                test_set_budget_torch.append(instance_budget_k_torch)
         test_set.append(test_set_budget)
+        if to_torch:
+            test_set_torch.append(test_set_budget_torch)
 
     if not os.path.exists('data'):
         os.mkdir('data')
     path_test_data = os.path.join('data', 'test_data')
     if not os.path.exists(path_test_data):
         os.mkdir(path_test_data)
-    if to_torch:
-        file_path = os.path.join(path_test_data, "test_set_torch.gz")
-    else:
-        file_path = os.path.join(path_test_data, "test_set.gz")
-    # save the test set
+    # Save the test sets
+    file_path = os.path.join(path_test_data, "test_set.gz")
     pickle.dump(test_set, open(file_path, "wb"))
+    if to_torch:
+        file_path_torch = os.path.join(path_test_data, "test_set_torch.gz")
+        pickle.dump(test_set_torch, open(file_path_torch, "wb"))
+
 
 
 def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
@@ -249,7 +255,7 @@ def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_m
                               weighted, w_max, directed, size_test_set, to_torch=True)
             path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
         else:
-            path_test_set = path_test_data
+            path_test_set = os.path.join(path_test_data, 'test_set_torch.gz')
         # load the test set
         test_set = pickle.load(open(path_test_set, "rb"))
         # create a dataloader object for each dataset in the test set

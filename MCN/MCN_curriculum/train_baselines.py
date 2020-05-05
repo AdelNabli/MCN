@@ -18,6 +18,7 @@ from MCN.utils import (
 from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
 from MCN.MCN_curriculum.environment import Environment
 from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.test_performances.optimality_gap import compute_optimality_gap
 from torch_scatter import scatter_max, scatter_min
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -368,3 +369,13 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 memory_next_state[count_memory % size_memory] = next_state_episode[k]
                 memory_targets[count_memory % size_memory] = targets_episode[k]
             count_memory += 1
+
+    # Compute how the neural networks we trained perform on the test set
+    if size_test_data > 0:
+        if path_test_data is None:
+            # the test data has been generated before the training
+            path_test_data = 'data\\test_data'
+        value_net_bis.load_state_dict(value_net.state_dict())
+        value_net_bis.eval()
+        list_experts = [value_net_bis] * max_budget
+        compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_test_data=path_test_data)

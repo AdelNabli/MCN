@@ -47,7 +47,7 @@ def print_opt_gap(Omega_max, Phi_max, Lambda_max, og_mean, og_budget, og_player)
 
 
 def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_protection=False,
-                           path_test_set="", return_computation=False, **kwargs):
+                           path_test_data=None, return_computation=False, **kwargs):
 
     """Compute the optimality gap on a test set of exactly solved instances.
     print the average optimality over all the test sets,
@@ -55,13 +55,14 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
     Return the results of the computation if return_computation is set to True"""
 
     # if the test set was not given
-    if ".gz" not in path_test_set:
+    if path_test_data is None:
         # generate the test set in the 'data\test' directory
         generate_test_set(Omega_max=Omega_max,
                           Phi_max=Phi_max,
                           Lambda_max=Lambda_max,
                           **kwargs)
-        path_test_set = os.path.join('data', 'test_data', 'test_set.gz')
+        path_test_data = os.path.join('data', 'test_data')
+    path_test_set = os.path.join(path_test_data, 'test_set.gz')
     test_set = pickle.load(open(path_test_set, "rb"))
 
     print("==========================================================================")
@@ -122,4 +123,4 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
     print_opt_gap(Omega_max, Phi_max, Lambda_max, opt_gap_mean, opt_gap_budget, opt_gap_player)
 
     if return_computation:
-        return(opt_gap_mean, opt_gap_budget, opt_gap_player)
+        return opt_gap_mean, opt_gap_budget, opt_gap_player
