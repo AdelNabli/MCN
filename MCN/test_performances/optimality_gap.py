@@ -10,6 +10,9 @@ from MCN.solve_mcn import solve_mcn
 
 def opt_gap(list_exact, list_approx):
 
+    """Function used to compute the optimality gap:
+    mean((val_exact - val_approx) / val_exact)"""
+
     vals_exact = np.array(list_exact)
     vals_approx = np.array(list_approx)
     # replace 0s with 1s in the denominator to prevent errors
@@ -18,7 +21,12 @@ def opt_gap(list_exact, list_approx):
     return gap
 
 
-def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_test_set="", **kwargs):
+def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts,
+                           exact_protection=False, path_test_set="", **kwargs):
+
+    """Compute the optimality gap on a test set of exactly solved instances.
+    Return the average optimality over all the test sets,
+    the list of optimality gaps for each player and for each learning stage."""
 
     # if the test set was not given
     if ".gz" not in path_test_set:
@@ -32,22 +40,26 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
 
     print("==========================================================================")
     print("Computing the values using the heuristic... \n")
-
+    # Initialize the variables
     player_values_true = [[],[],[]]
     player_values_heuristic = [[],[],[]]
     budget_values_true = []
     budget_values_heuristic = []
     opt_gap_budget = []
     opt_gap_player = []
+    # For each learning stage, there is a corresponding test set
     for k in tqdm(range(len(test_set))):
+        # Initialize the variables of the learning stage
         budget = k + 1
         dataset = test_set[k]
         budget_values_true.append([])
         budget_values_heuristic.append([])
+        # Iterate over the instances in the dataset
         for instance in dataset:
             value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
-                                               Lambda_max=Lambda_max, exact=False, list_experts=list_experts)
+                                               Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
+                                               exact_protection=exact_protection)
             # re-add the values of the nodes removed with the defender's moves
             is_weighted = len(nx.get_node_attributes(instance.G, 'weight').values()) != 0
             if is_weighted:
@@ -70,8 +82,15 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_te
                 player_values_heuristic[0].append(value_heuristic)
         # compute the budget's optimality gap
         opt_gap_budget.append(opt_gap(budget_values_true[k], budget_values_heuristic[k]))
-
+    # Compute the player's optimality gap
     for player in [0,1,2]:
         opt_gap_player.append(opt_gap(player_values_true[player], player_values_heuristic[player]))
+    # Compute the average optimality gap over all datasets
+    # doesn't take into account the values already solved exactly in the heuristic method
+    # (e.g for Lambda = 1 if exact_protection=False, the instances are solved exactly)
+    first_budget = 1 + Lambda_max*exact_protection
+    tot_val_approx = [value for k in range(first_budget, len(test_set)) for value in budget_values_heuristic[k]]
+    tot_val_true = [value for k in range(first_budget, len(test_set)) for value in budget_values_true[k]]
+    opt_gap_mean = opt_gap(tot_val_true, tot_val_approx)
 
-    return(opt_gap_budget, opt_gap_player)
+    return(opt_gap_mean, opt_gap_budget, opt_gap_player)

@@ -24,10 +24,12 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
            whether to apply the exact algorithm or not
     list_experts: list of pytorch neural nets,
                   loaded list of experts
+    exact_protection: bool,
+                      whether to use the exact algorithm for the protection phase
     Returns:
     -------
     value: int,
-           number of saved nodes
+           values of the additional saved nodes
     D, I, P: lists,
              respectively, list of the vaccinated, attacked, protected nodes"""
 

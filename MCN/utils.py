@@ -158,6 +158,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
               whether to create weights for the nodes or not
     w_max: int,
            the maximum weight a node can have
+    directed: bool,
+              whether or not the graph is directed
 
     Returns:
     -------
@@ -426,7 +428,7 @@ def compute_saved_nodes(G, I):
     Returns:
     -------
     value: int,
-             the values of the saved nodes"""
+           the values of the saved nodes"""
 
     n = len(G)
     connected_infected = set()
@@ -529,12 +531,8 @@ def features_connected_comp(G, I):
     indic_saved -= indic_infected
     J_tensor = torch.tensor(J_tensor, dtype=torch.float).view([n, 1]).to(device)
     indic_saved = torch.tensor(indic_saved, dtype=torch.float).view([n, 1]).to(device)
-    indic_infected = (
-        torch.tensor(indic_infected, dtype=torch.float).view([n, 1]).to(device)
-    )
-    size_connected_tensor = (
-        torch.tensor(size_connected, dtype=torch.float).view([n, 1]).to(device)
-    )
+    indic_infected = torch.tensor(indic_infected, dtype=torch.float).view([n, 1]).to(device)
+    size_connected_tensor = torch.tensor(size_connected, dtype=torch.float).view([n, 1]).to(device)
 
     return (value, J_tensor, indic_saved, indic_infected, size_connected_tensor)
 
@@ -635,6 +633,9 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
 
 def sample_action(neural_net, player, next_player, rewards, next_afterstates,
                   eps_end, eps_decay, eps_start, count_steps, **kwargs):
+    """Sample an action given the possible afterstates.
+    The action is the greedy one with a certain probability and sampled at random
+    among all possible ones with the complementary probability."""
 
     sample = random.random()
     eps_threshold = eps_end + (eps_start - eps_end) * np.exp(-1. * count_steps / eps_decay)
@@ -793,6 +794,9 @@ def count_param_NN(torch_module):
 
 
 def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
+
+    """Compute the list of losses of the value_net or the list_of_experts
+    over the list of exactly solved datasets that constitutes the test set"""
 
     list_losses = []
     with torch.no_grad():

@@ -29,18 +29,26 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                      size of the training set used to train each target net
     size_val_data: int,
                    size of the validation dataset used for each target net
+    size_test_data: int,
+                   size of the test dataset used
     lr: float,
         learning rate of the optimizer
     betas: tuple of floats,
            betas used for the optimizer
     n_epoch: int,
              number of epoch used to train each target net
-    h1: int,
-        first hidden dim of the ValueNet
-    h2: int,
-        second hidden dim of the ValueNet
+    dim_embedding: int,
+                   dimension of the node and graph embedding used in the ValueNet
+    dim_values: int,
+                dimension of the values embedding in the attention heads of the ValueNet
+    dim_hidden: int,
+                dimension of the first hidden layer used in the fully connected layers of the ValueNet
     n_heads: int,
-             number of heads used in the GATs of the ValueNet
+             number of heads used in the attention layers of the ValueNet
+    n_att_layers: int,
+                  number of attention layers in the ValueNet
+    n_pool: int,
+            number of different graph embeddings used in the ValueNet
     alpha: float,
            alpha value of the APPNP of the ValueNet
     p: float \in [0,1]
@@ -61,6 +69,12 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
              maximum value of Phi we want the instances to have
     Lambda_max: int,
                 maximum value of Lambda we want the instances to have
+    weighted: bool (default False),
+              whether or not to train on weighted graphs
+    w_max: int (default 1),
+           if weighted, the maximum weight for a node to have
+    directed: bool (default False),
+              whether or not to train on directed graphs
     num_workers: int (default 0),
                  num of workers used for the dataloader object during training
     path_experts: str (default None),
@@ -74,7 +88,12 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                      is loaded thanks to path_train
     path_train: str (default ""),
                 path of the file containing the parameters of a previous
-                training session"""
+                training session
+    path_test_data: str (default ""),
+                    path of the file containing the test data
+    exact_protection: bool (default False),
+                      whether or not to use the exact algorithm as expert
+                      for the protection phase"""
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -96,13 +115,6 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
     # Compute n_max
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     # Initialize the Value neural network
-    #         input_dim=5,
-    #         hidden_dim1=h1,
-    #         hidden_dim2=h2,
-    #         n_heads=n_heads,
-    #         K=n_max,
-    #         alpha=alpha,
-    #         p=p
     value_net = ValueNet(
         dim_input=5,
         dim_embedding=dim_embedding,
@@ -179,7 +191,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
         )
         # Loop over epochs
         for epoch in tqdm(range(n_epoch)):
-            # Training for all batchs in the training set
+            # Training for all batches in the training set
             for i_batch, batch_instances in enumerate(training_generator):
                 # Compute the approximate values
                 values_approx = value_net(

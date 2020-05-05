@@ -48,6 +48,8 @@ class AttentionLayer(nn.Module):
 
 class NodeEncoder(nn.Module):
 
+    """Create the node embeddings"""
+
     def __init__(self, dim_input, n_heads, n_att_layers, dim_embedding, dim_values, dim_hidden, K, alpha, weighted):
         super(NodeEncoder, self).__init__()
 
@@ -99,6 +101,9 @@ class NodeEncoder(nn.Module):
 
 
 class ContextEncoder(nn.Module):
+
+    """Create the graph embedding, which is then concatenated with other
+    variables describing the current context"""
 
     def __init__(self, n_pool, dim_embedding, dim_hidden, weighted):
         super(ContextEncoder, self).__init__()
@@ -170,7 +175,9 @@ class ValueNet(nn.Module):
                        (can be thought of as the probability of
                        the node being saved in the end)
             - STEP 4 : sum the scores of the nodes to obtain
-                       the value of the graph"""
+                       the value of the graph.
+                       if the graph is weighted, before summing we multiply the
+                       scores \in [0,1] with the node weights"""
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden,
                  n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):

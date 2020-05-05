@@ -25,8 +25,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def compute_targets_dqn(target_net, instances_batch, targets, players, next_players):
 
-    n = len(instances_batch)
+    """In DQN, the targets used in the loss are the approximate values of the next state
+    given by the neural network"""
 
+    n = len(instances_batch)
+    # Initialize the masks:
+    # we have to compute the approximate values of each possible afterstate,
+    # but the target is either the min or the max of all these possibilities depending
+    # on whose player it is the turn to play. So we compute all the approximate values
+    # first and then gather the min or the max depending on the player.
     players_torch = torch.tensor(players)
     next_players_torch = torch.tensor(next_players)
     mask_approx = next_players_torch.le(2)
@@ -37,12 +44,13 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     players_exact = players_torch[mask_exact]
     mask_exact_min = players_exact.eq(1)
     mask_exact_max = torch.logical_not(mask_exact_min)
-
+    # Initializes the variables
     instances_torch = [instances_batch[k] for k in range(n) if mask_approx[k]]
     id_graph_approx = torch.tensor(
         [i for i in range(len(instances_torch)) for k in range(len(instances_torch[i].G_torch))]
     ).to(device)
     batch_instances = collate_fn(instances_torch, for_dqn=True)
+    # Compute the approximate values
     values_approx = target_net(
         batch_instances.G_torch,
         batch_instances.n_nodes,
@@ -59,7 +67,7 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     )[:, 0]
     targets_approx_min = scatter_min(values_approx, id_graph_approx)[0]
     targets_approx_max = scatter_max(values_approx, id_graph_approx)[0]
-
+    # Gather the exact values when the next player is 3
     values_exact = [targets[k] for k in range(n) if mask_exact[k]]
     id_graph_exact = torch.tensor(
         [i for i in range(len(values_exact)) for k in range(values_exact[i].size()[0])]
@@ -67,7 +75,8 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     values_exact = torch.cat(values_exact)[:, 0]
     targets_exact_min = scatter_min(values_exact, id_graph_exact)[0]
     targets_exact_max = scatter_max(values_exact, id_graph_exact)[0]
-
+    # Collate the different targets corresponding to each possible case
+    # into a single target tensor
     targets = torch.tensor([0]*n, dtype=torch.float).to(device)
     targets[mask_exact][mask_exact_min] = targets_exact_min[mask_exact_min]
     targets[mask_exact][mask_exact_max] = targets_exact_max[mask_exact_max]
@@ -77,12 +86,14 @@ def compute_targets_dqn(target_net, instances_batch, targets, players, next_play
     return targets
 
 
-def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas, n_instances, update_target, count_step,
+def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
                              eps_end, eps_decay, eps_start,
                              dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
-                             w_max=1, num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                             training_method='MC'):
+                             w_max=1, directed=False,
+                             num_workers=0, resume_training=False, path_train="", path_test_data=None, training_method='MC'):
+
+    """Train a neural network to solve the MCN problem either using Monte Carlo samples or with Q-learning"""
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -105,6 +116,11 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
     # Compute n_max
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     max_budget = Omega_max + Phi_max + Lambda_max - 1
+    # Compute the size of the memory and the rate of epoch over it
+    # depending on the number of time we want to 'see' each instance, the
+    # total number of episodes to generate and the batch size
+    size_memory = batch_size * n_time_instance_seen
+    n_instance_before_epoch = batch_size
     # Init the value net
     value_net = ValueNet(
         dim_input=5,
@@ -149,6 +165,9 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
     ).to(device)
     target_net.load_state_dict(value_net.state_dict())
     target_net.eval()
+    # in order to use the current value_net during training for an evaluation task,
+    # we first create a second instance of ValueNet in which we will load the
+    # state_dicts of the learning value_net before each use
     value_net_bis = ValueNet(
         dim_input=5,
         dim_embedding=dim_embedding,
@@ -164,11 +183,12 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
     ).to(device)
     # generate the test set
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
-                                               Lambda_max, size_test_data, path_test_data, batch_size, num_workers)
+                                               Lambda_max, weighted, w_max, directed, size_test_data, path_test_data,
+                                               batch_size, num_workers)
 
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 
-    for episode in tqdm(range(n_instances//max_budget + 1)):
+    for episode in tqdm(range(n_episode)):
         # Sample a random instance from where to begin
         instance = generate_random_instance(
             n_free_min,
@@ -181,6 +201,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             Budget_target=max_budget,
             weighted=weighted,
             w_max=w_max,
+            directed=directed,
         )
         # Initialize the environment
         env = Environment(instance.G, instance.Omega, instance.Phi, instance.Lambda, J=instance.J)
@@ -199,6 +220,8 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             current_instance = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
             instances_episode.append(current_instance)
             # Take an action
+            # begin by choosing which neural network is used as a policy network
+            # depending on the method of training
             if training_method == 'DQN':
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
@@ -228,6 +251,8 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                 size_connected=env.next_size_connected_tensor,
             )
             if training_method == 'DQN':
+                # save the the parameters necessary to compute the
+                # approximate values of the next afterstates
                 next_instance_torch = InstanceTorch(
                     G_torch=env.next_list_G_torch,
                     n_nodes=env.next_n_nodes_tensor,
@@ -253,10 +278,13 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
             env.step(action)
 
             # perform an epoch over the replay memory
-            if count_instances % count_step == 0 and count_memory > batch_size:
+            # if there is enough new instances in memory
+            if count_instances % n_instance_before_epoch == 0 and count_memory > batch_size:
+                # create a list of randomly shuffled indices to sample batches from
                 memory_size = len(replay_memory)
                 n_batch = memory_size // batch_size + 1 * (memory_size % batch_size > 0)
                 ids_batch = random.sample(range(memory_size), memory_size)
+                # sample the batches from the memory in the order defined with ids_batch
                 for i_batch in range(n_batch):
                     if i_batch == n_batch - 1:
                         id_batch = ids_batch[i_batch*batch_size:]
@@ -293,7 +321,7 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                     optimizer.zero_grad()
                     # Compute the loss of the batch
                     loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_target) ** 2))
-                    # compute the loss on the test set
+                    # compute the loss on the test set using the value_net_bis
                     value_net_bis.load_state_dict(value_net.state_dict())
                     value_net_bis.eval()
                     losses_test = compute_loss_test(test_set_generators, value_net=value_net_bis)
@@ -312,11 +340,11 @@ def train_value_net_baseline(batch_size, size_memory, size_test_data, lr, betas,
                         target_net.load_state_dict(value_net.state_dict())
                         target_net.eval()
 
-                    # Saves model
+                    # Saves model every 200 steps
                     if count_steps % 200 == 0:
                         save_models(date_str, dict_args, value_net, optimizer, count_steps)
                         print(
-                            " \n Instances: %2d/%2d" % (count_instances, n_instances),
+                            " \n Episode: %2d/%2d" % (episode, n_episode),
                             " \n Loss of the current value net: %f" % float(loss),
                             " \n Losses on test set : ", losses_test,
                         )

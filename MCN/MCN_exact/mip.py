@@ -10,11 +10,7 @@ def solve_mip(Q, G, Lambda, Omega):
     Q: list of lists (size=|Q| x Phi),
        list of the attacks considered.
        each attack is a list of nodes.
-    V: list of ints,
-       list of the vertices of the graph
-    E: list of tuples of ints,
-       list of the edges of the graph
-       if (v,u) \in E, then (u,v) must be too
+    G: networkx graph,
     Lambda: int,
             protection budget
     Omega: int,

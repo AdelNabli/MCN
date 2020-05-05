@@ -13,6 +13,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class MCNDataset(Dataset):
 
+    """Create the torch Dataset object"""
+
     def __init__(self, list_instances):
 
         self.data = list_instances
@@ -28,14 +30,20 @@ class MCNDataset(Dataset):
 
 def collate_fn(list_instances, for_dqn=False):
 
+    """Given a list of instances, gather them all into a single instance"""
+
     # Initialize the collated instance
     instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     # Create a batch data object from Pytorch Geometric
     if for_dqn:
+        # if we are to use the function with the dqn baseline,
+        # the instances in list_instances have a list of graphs for the G_torch
+        # argument and thus we need to create a batch from the list of lists
         instances_collated.G_torch = Batch.from_data_list(
             [G_torch for instances in list_instances for G_torch in instances.G_torch]
         ).to(device)
     else:
+        # else, each instance contains only one graph
         instances_collated.G_torch = Batch.from_data_list(
             [instances.G_torch for instances in list_instances]
         ).to(device)
@@ -59,6 +67,10 @@ def collate_fn(list_instances, for_dqn=False):
 def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
                          d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, directed, Budget,
                          list_experts, path_data, solve_exact=False, exact_protection=False):
+
+    """Create or load the training and validation sets.
+    Return two dataloaders to access both datasets.
+    Dump the datasets in a .gz file in data/train_data and data/val_data"""
 
     print("\n==========================================================================")
     print("Creating or Loading the Training and Validation sets for Budget = %2d \n" % Budget)
@@ -177,7 +189,6 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
     print("Generates the test set... \n")
 
     # for all budgets
-
     for budget in tqdm(range(1, Budget_max + 1)):
         # initialize the budget's instances list
         test_set_budget = []
@@ -228,6 +239,9 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
 
 def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                          weighted, w_max, directed, size_test_set, path_test_data, batch_size, num_workers):
+
+    """Load or create the test sets and returns a list of Dataloaders to access each test set """
+
     test_set_generators = []
     if size_test_set > 0 :
         if path_test_data is None:
