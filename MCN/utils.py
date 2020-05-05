@@ -175,6 +175,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             # we need to attack some nodes in order
             # to learn the protection
             Phi_attacked = np.random.randint(1, Phi_max + 1)
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max + Lambda_max - Lambda
         # if the target net is learning the attack values
         elif Budget_target <= Phi_max + Lambda_max:
             Omega = 0
@@ -182,6 +184,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             remaining_attack_budget = Phi_max - Phi
             Phi_attacked = np.random.randint(0, remaining_attack_budget + 1)
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max
         # else, the target net is learning the vaccination values
         elif Budget_target <= Omega_max + Phi_max + Lambda_max:
             Omega = Budget_target - (Phi_max + Lambda_max)
@@ -189,6 +193,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Phi = np.random.randint(1, Phi_max + 1)
             Lambda = np.random.randint(0, Lambda_max + 1)
             Phi_attacked = 0
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max - Omega
     # else, we are not in the training procedure
     else:
         # sample a random player
@@ -208,6 +214,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             # no nodes pre-attacked
             Phi_attacked = 0
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max - Omega
         # if attacker
         elif player == 1:
             Omega = 0
@@ -215,6 +223,8 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             # no nodes pre-attacked
             Phi_attacked = 0
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max
         # if protector
         elif player == 2:
             Omega = 0
@@ -222,14 +232,15 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(1, Lambda_max + 1)
             # some nodes are pre-attacked
             Phi_attacked = np.random.randint(1, Phi_max + 1)
+            # set the corresponding max number of connected comp
+            max_n_comp = 1 + Omega_max + Lambda_max - Lambda
 
     # random number of nodes
     n_free = random.randrange(n_free_min, n_free_max)
     n = n_free + Omega + Phi + Lambda + Phi_attacked
     # random number of components
-    min_size_comp = np.random.randint(1, n + 1)
-    max_n_comp = n // min_size_comp + 1 * (n % min_size_comp > 0)
-    n_comp = np.random.randint(1, max_n_comp + 1)
+    n_comp = int(1 + np.random.poisson(1, 1))
+    n_comp = min(max_n_comp, n_comp)
     partition = list(
         np.sort(np.random.choice(range(1, n + 1), n_comp - 1, replace=False))
     )
@@ -804,7 +815,10 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
             target = []
             val_approx = []
             if list_experts is not None:
-                target_net = list_experts[k]
+                try:
+                    target_net = list_experts[k]
+                except IndexError:
+                    target_net = None
             elif value_net is not None:
                 target_net = value_net
             if target_net is None:
