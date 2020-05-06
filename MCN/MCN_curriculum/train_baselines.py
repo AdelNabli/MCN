@@ -97,7 +97,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
                              w_max=1, directed=False,
                              num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                             training_method='MC', exact_protection=False):
+                             training_method='MC', exact_protection=False, rate_display=200):
 
     """Train a neural network to solve the MCN problem either using Monte Carlo samples or with Q-learning"""
 
@@ -374,8 +374,8 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                         target_net.load_state_dict(value_net.state_dict())
                         target_net.eval()
 
-                    # Saves model every 200 steps
-                    if count_steps % 200 == 0:
+                    # Saves model every rate_display steps
+                    if count_steps % rate_display == 0:
                         save_models(date_str, dict_args, value_net, optimizer, count_steps)
                         print(
                             " \n Episode: %2d/%2d" % (episode, n_episode),
