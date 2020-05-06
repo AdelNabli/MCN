@@ -251,6 +251,11 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
     if size_test_data > 0:
         if path_test_data is None:
             # the test data has been generated before the training
-            path_test_data = os.path.join('data', 'test_data')
+            folder_name = 'test_data'
+            if weighted:
+                folder_name += '_w'
+            if directed:
+                folder_name += '_dir'
+            path_test_data = os.path.join('data', folder_name)
         compute_optimality_gap(Omega_max, Phi_max, Lambda_max, targets_experts.list_target_nets,
                                exact_protection=exact_protection, path_test_data=path_test_data)

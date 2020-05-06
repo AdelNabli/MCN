@@ -412,7 +412,12 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     if size_test_data > 0:
         if path_test_data is None:
             # the test data has been generated before the training
-            path_test_data = os.path.join('data', 'test_data')
+            folder_name = 'test_data'
+            if weighted:
+                folder_name += '_w'
+            if directed:
+                folder_name += '_dir'
+            path_test_data = os.path.join('data', folder_name)
         value_net_bis.load_state_dict(value_net.state_dict())
         value_net_bis.eval()
         list_experts = [value_net_bis] * max_budget

@@ -233,7 +233,12 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
 
     if not os.path.exists('data'):
         os.mkdir('data')
-    path_test_data = os.path.join('data', 'test_data')
+    folder_name = 'test_data'
+    if weighted:
+        folder_name += '_w'
+    if directed:
+        folder_name += '_dir'
+    path_test_data = os.path.join('data', folder_name)
     if not os.path.exists(path_test_data):
         os.mkdir(path_test_data)
     # Save the test sets
@@ -255,7 +260,12 @@ def load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_m
         if path_test_data is None:
             generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                               weighted, w_max, directed, size_test_set, to_torch=True)
-            path_test_set = os.path.join('data', 'test_data', 'test_set_torch.gz')
+            folder_name = 'test_data'
+            if weighted:
+                folder_name += '_w'
+            if directed:
+                folder_name += '_dir'
+            path_test_set = os.path.join('data', folder_name, 'test_set_torch.gz')
         else:
             path_test_set = os.path.join(path_test_data, 'test_set_torch.gz')
         # load the test set
