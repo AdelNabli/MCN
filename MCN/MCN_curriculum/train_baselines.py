@@ -411,4 +411,5 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         value_net_bis.load_state_dict(value_net.state_dict())
         value_net_bis.eval()
         list_experts = [value_net_bis] * max_budget
-        compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, path_test_data=path_test_data)
+        compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts,
+                               exact_protection=exact_protection, path_test_data=path_test_data)
