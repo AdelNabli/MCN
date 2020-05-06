@@ -358,7 +358,12 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     # compute the loss on the test set using the value_net_bis
                     value_net_bis.load_state_dict(value_net.state_dict())
                     value_net_bis.eval()
-                    losses_test = compute_loss_test(test_set_generators, value_net=value_net_bis)
+                    if exact_protection:
+                        list_experts = [None]*Lambda_max
+                        list_experts += [value_net_bis]*(Omega_max + Phi_max - 1)
+                        losses_test = compute_loss_test(test_set_generators, list_experts=list_experts)
+                    else:
+                        losses_test = compute_loss_test(test_set_generators, value_net=value_net_bis)
                     for k in range(len(losses_test)):
                         name_loss = 'Loss test budget ' + str(k+1)
                         writer.add_scalar(name_loss, float(losses_test[k]), count_steps)
