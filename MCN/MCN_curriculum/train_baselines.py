@@ -1,6 +1,8 @@
 import os
 import torch
 import random
+import networkx as nx
+import numpy as np
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -19,6 +21,7 @@ from MCN.utils import (
 from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
 from MCN.MCN_curriculum.environment import Environment
 from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.MCN_exact.attack_protect import AP
 from MCN.test_performances.optimality_gap import compute_optimality_gap
 from torch_scatter import scatter_max, scatter_min
 
@@ -93,7 +96,8 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                              dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
                              w_max=1, directed=False,
-                             num_workers=0, resume_training=False, path_train="", path_test_data=None, training_method='MC'):
+                             num_workers=0, resume_training=False, path_train="", path_test_data=None,
+                             training_method='MC', exact_protection=False):
 
     """Train a neural network to solve the MCN problem either using Monte Carlo samples or with Q-learning"""
 
@@ -215,48 +219,59 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
             next_state_episode = []
             targets_episode = []
         # Unroll the episode
-        while env.Budget >= 1:
-            # update the environment
-            env.compute_current_situation()
-            # save the current instance
-            current_instance = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
-            instances_episode.append(current_instance)
-            # Take an action
-            # begin by choosing which neural network is used as a policy network
-            # depending on the method of training
-            if training_method == 'DQN':
-                value_net_bis.load_state_dict(value_net.state_dict())
-                value_net_bis.eval()
-                neural_net_policy = value_net_bis
-            else:
-                neural_net_policy = target_net
-            action, targets, value = sample_action(
-                neural_net_policy,
-                env.player,
-                env.next_player,
-                env.next_rewards,
-                env.next_list_G_torch,
-                eps_end,
-                eps_decay,
-                eps_start,
-                count_steps,
-                n_nodes=env.next_n_nodes_tensor,
-                Omegas=env.next_Omega_tensor,
-                Phis=env.next_Phi_tensor,
-                Lambdas=env.next_Lambda_tensor,
-                Omegas_norm=env.next_Omega_norm,
-                Phis_norm=env.next_Phi_norm,
-                Lambdas_norm=env.next_Lambda_norm,
-                J=env.next_J_tensor,
-                saved_nodes=env.next_saved_tensor,
-                infected_nodes=env.next_infected_tensor,
-                size_connected=env.next_size_connected_tensor,
-            )
-            if training_method == 'DQN':
-                # save the the parameters necessary to compute the
-                # approximate values of the next afterstates
-                next_instance_torch = InstanceTorch(
-                    G_torch=env.next_list_G_torch,
+        continue_unrolling = True
+        while env.Budget >= 1 and continue_unrolling:
+            # if the next player is the protector and we use the exact first attack
+            if env.Budget == instance.Lambda + 1 and exact_protection:
+                continue_unrolling = False
+                J_att = env.list_J[env.action]
+                G_att = env.list_G_nx[env.action]
+                # save the current instance
+                current_instance = Instance(G_att, 0, 1, instance.Lambda, J_att, 0)
+                instances_episode.append(current_instance)
+                count_instances += 1
+                is_weighted = len(nx.get_node_attributes(G_att, 'weight').values()) != 0
+                # Gather the weights
+                if is_weighted:
+                    weights = np.array([G_att.nodes[node]['weight'] for node in G_att.nodes()])
+                else:
+                    weights = np.ones(len(G_att))
+                I, _, P, value = AP(G_att, 1, instance.Lambda, target=1, J=J_att)
+                val_P = np.sum(weights[P])
+                value -= val_P
+                if training_method == 'DQN':
+                    player_episode.append(1)
+                    next_player_episode.append(3)
+                    next_state_episode.append([])
+                    targets_episode.append(
+                        torch.tensor([value]*len(G_att), dtype=torch.float).view([len(G_att), 1]).to(device)
+                    )
+            if continue_unrolling:
+
+                # update the environment
+                env.compute_current_situation()
+                # save the current instance
+                current_instance = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
+                instances_episode.append(current_instance)
+                # Take an action
+                # begin by choosing which neural network is used as a policy network
+                # depending on the method of training
+                if training_method == 'DQN':
+                    value_net_bis.load_state_dict(value_net.state_dict())
+                    value_net_bis.eval()
+                    neural_net_policy = value_net_bis
+                else:
+                    neural_net_policy = target_net
+                action, targets, value = sample_action(
+                    neural_net_policy,
+                    env.player,
+                    env.next_player,
+                    env.next_rewards,
+                    env.next_list_G_torch,
+                    eps_end,
+                    eps_decay,
+                    eps_start,
+                    count_steps,
                     n_nodes=env.next_n_nodes_tensor,
                     Omegas=env.next_Omega_tensor,
                     Phis=env.next_Phi_tensor,
@@ -268,16 +283,33 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     saved_nodes=env.next_saved_tensor,
                     infected_nodes=env.next_infected_tensor,
                     size_connected=env.next_size_connected_tensor,
-                    target=torch.tensor(value).view([1,1]),
                 )
-                player_episode.append(env.player)
-                next_player_episode.append(env.next_player)
-                next_state_episode.append(next_instance_torch)
-                targets_episode.append(targets)
+                if training_method == 'DQN':
+                    # save the the parameters necessary to compute the
+                    # approximate values of the next afterstates
+                    next_instance_torch = InstanceTorch(
+                        G_torch=env.next_list_G_torch,
+                        n_nodes=env.next_n_nodes_tensor,
+                        Omegas=env.next_Omega_tensor,
+                        Phis=env.next_Phi_tensor,
+                        Lambdas=env.next_Lambda_tensor,
+                        Omegas_norm=env.next_Omega_norm,
+                        Phis_norm=env.next_Phi_norm,
+                        Lambdas_norm=env.next_Lambda_norm,
+                        J=env.next_J_tensor,
+                        saved_nodes=env.next_saved_tensor,
+                        infected_nodes=env.next_infected_tensor,
+                        size_connected=env.next_size_connected_tensor,
+                        target=torch.tensor(value).view([1,1]),
+                    )
+                    player_episode.append(env.player)
+                    next_player_episode.append(env.next_player)
+                    next_state_episode.append(next_instance_torch)
+                    targets_episode.append(targets)
 
-            count_instances += 1
-            # Update the environment
-            env.step(action)
+                count_instances += 1
+                # Update the environment
+                env.step(action)
 
             # perform an epoch over the replay memory
             # if there is enough new instances in memory
