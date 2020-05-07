@@ -64,7 +64,7 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
             weights = np.ones(len(G))
         value, _, P = solve_defender(J, G, Lambda)
         val_P = np.sum(weights[P])
-        return value - val_P, [], J, P
+        return value - val_P, [], [], P
     else:
         # Initialize the environment
         env = Environment(G, Omega, Phi, Lambda, J=J)

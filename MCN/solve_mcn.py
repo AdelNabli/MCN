@@ -53,7 +53,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
         elif player == 2:
             value, _, P = solve_defender(J, G, Lambda)
             val_P = np.sum(weights[P])
-            return (value - val_P, [], J, P)
+            return (value - val_P, [], [], P)
     else:
         return solve_mcn_heuristic(
             list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=J, exact_protection=exact_protection
