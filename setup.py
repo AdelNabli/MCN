@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="MCN",
-    version=0.3,
+    version=0.31,
     packages=find_packages(),
     author="Adel Nabli",
     install_requires=[
@@ -13,6 +13,6 @@ setup(
         "torch_geometric",
         "tqdm",
         "tensorboardX",
-        #"cplex",
+        "cplex",
     ],
 )
