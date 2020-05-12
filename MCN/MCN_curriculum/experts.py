@@ -31,6 +31,7 @@ class TargetExperts(object):
         self.weighted = weighted
         # Initialize the parameters of the list of experts
         self.n_max = Omega_max + Phi_max + Lambda_max
+        self.Lambda_max = Lambda_max
         self.list_target_nets = [None] * (self.n_max - 1)
         self.losses_validation_sets = [math.inf] * (self.n_max - 1)
         self.loss_value_net = math.inf

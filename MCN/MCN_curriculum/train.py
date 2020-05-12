@@ -4,7 +4,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from datetime import datetime
-from MCN.utils import save_models,load_training_param, count_param_NN, compute_loss_test
+from MCN.utils import save_models, load_training_param, count_param_NN, compute_loss_test
 from MCN.test_performances.optimality_gap import compute_optimality_gap
 from MCN.MCN_curriculum.value_nn import ValueNet
 from MCN.MCN_curriculum.experts import TargetExperts
@@ -18,7 +18,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     weighted, w_max=1, directed=False,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="",
-                    path_test_data=None, exact_protection=False):
+                    path_test_data=None, exact_protection=False, n_epoch_already_trained=0):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
@@ -95,7 +95,9 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                     path of the file containing the test data
     exact_protection: bool (default False),
                       whether or not to use the exact algorithm as expert
-                      for the protection phase"""
+                      for the protection phase
+    n_epoch_already_trained: int (default 0)
+                             if resume training, begin the training where it was stopped"""
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -152,9 +154,11 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
     # If resume training
+    first_epoch = False
     if resume_training:
         # load the state dicts of the optimizer and value_net
         value_net, optimizer = load_training_param(value_net, optimizer, path_train)
+        first_epoch = True
     # generate the test set
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
                                                Lambda_max, weighted, w_max, directed, size_test_data, path_test_data,
@@ -192,7 +196,12 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
             exact_protection=exact_protection,
         )
         # Loop over epochs
-        for epoch in tqdm(range(n_epoch)):
+        if first_epoch:
+            n_loops = n_epoch - n_epoch_already_trained
+            first_epoch = False
+        else:
+            n_loops = n_epoch
+        for epoch in tqdm(range(n_loops)):
             # Training for all batches in the training set
             for i_batch, batch_instances in enumerate(training_generator):
                 # Compute the approximate values
