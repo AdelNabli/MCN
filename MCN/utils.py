@@ -175,8 +175,10 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             # we need to attack some nodes in order
             # to learn the protection
             Phi_attacked = np.random.randint(1, Phi_max + 1)
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max + Lambda_max - Lambda
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = np.random.randint(0, Lambda_max - Lambda + 1)
+            Omega_del = np.random.randint(0, Omega_max + 1)
         # if the target net is learning the attack values
         elif Budget_target <= Phi_max + Lambda_max:
             Omega = 0
@@ -184,8 +186,10 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             remaining_attack_budget = Phi_max - Phi
             Phi_attacked = np.random.randint(0, remaining_attack_budget + 1)
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = 0
+            Omega_del = np.random.randint(0, Omega_max + 1)
         # else, the target net is learning the vaccination values
         elif Budget_target <= Omega_max + Phi_max + Lambda_max:
             Omega = Budget_target - (Phi_max + Lambda_max)
@@ -193,8 +197,10 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Phi = np.random.randint(1, Phi_max + 1)
             Lambda = np.random.randint(0, Lambda_max + 1)
             Phi_attacked = 0
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max - Omega
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = 0
+            Omega_del = np.random.randint(0, Omega_max - Omega + 1)
     # else, we are not in the training procedure
     else:
         # sample a random player
@@ -214,8 +220,9 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             # no nodes pre-attacked
             Phi_attacked = 0
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max - Omega
+            # already defended nodes
+            Lambda_del = 0
+            Omega_del = np.random.randint(0, Omega_max - Omega + 1)
         # if attacker
         elif player == 1:
             Omega = 0
@@ -223,8 +230,9 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(0, Lambda_max + 1)
             # no nodes pre-attacked
             Phi_attacked = 0
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max
+            # already defended nodes
+            Lambda_del = 0
+            Omega_del = np.random.randint(0, Omega_max + 1)
         # if protector
         elif player == 2:
             Omega = 0
@@ -232,29 +240,26 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
             Lambda = np.random.randint(1, Lambda_max + 1)
             # some nodes are pre-attacked
             Phi_attacked = np.random.randint(1, Phi_max + 1)
-            # set the corresponding max number of connected comp
-            max_n_comp = 1 + Omega_max + Lambda_max - Lambda
+            # already defended nodes
+            Lambda_del = np.random.randint(0, Lambda_max - Lambda + 1)
+            Omega_del = np.random.randint(0, Omega_max + 1)
 
     # random number of nodes
     n_free = random.randrange(n_free_min, n_free_max)
-    n = n_free + Omega + Phi + Lambda + Phi_attacked
-    # random number of components
-    n_comp = int(1 + np.random.poisson(1, 1))
-    n_comp = min(max_n_comp, n_comp)
-    partition = list(
-        np.sort(np.random.choice(range(1, n + 1), n_comp - 1, replace=False))
-    )
-    # Generate the graphs
-    G = nx.DiGraph()
-    partition = [0] + partition + [n]
-    for k in range(n_comp):
-        n_k = partition[k + 1] - partition[k]
-        d_k = d_edge_min + (d_edge_max - d_edge_min)*np.random.random()
-        G_k = generate_random_graph(n_k, d_k, directed=directed, draw=False)
-        G = nx.union(G, G_k, rename=("G-", "H-"))
+    n = n_free + Omega + Phi + Lambda + Omega_del + Phi_attacked + Lambda_del
+    # random density
+    d = d_edge_min + (d_edge_max - d_edge_min)*np.random.random()
+    # Generate the graph
+    G = generate_random_graph(n, d, directed=directed, draw=False)
+    # Generate a random defense
+    defended_nodes = np.random.choice(n, Omega_del + Lambda_del, replace=False)
+    if Omega_del + Lambda_del > 0:
+        # delete the nodes defended
+        G.remove_nodes_from(defended_nodes)
+        # relabel the nodes so that they are labeled from 0 to nb_nodes
+        G = nx.convert_node_labels_to_integers(G)
     # Generate the attack
-    I = list(np.random.choice(range(n), Phi_attacked, replace=False))
-    G = nx.convert_node_labels_to_integers(G)
+    I = list(np.random.choice(range(n - Omega_del - Lambda_del), Phi_attacked, replace=False))
     # Generate the weights
     if weighted:
         for node in G.nodes():
@@ -758,17 +763,18 @@ def load_saved_experts(path):
     if os.path.isdir(path):
         # for everything in the directory
         list_files = os.listdir(path)
-        max_budget = int(re.findall(r'\d+', list_files[-1])[0])
+        max_budget = max([int(re.findall(r'([0-9]+)\.pt', name)[0]) for name in list_files])
         list_experts = [None] * (max_budget + 1)
         for f in list_files:
-            expert_path = os.path.join(path, f)
-            # load the model
-            expert = torch.load(expert_path)
-            expert.eval()
-            # get the expert's budget
-            budget = int(re.findall(r'\d+', expert_path)[0])
-            # append the model to the list
-            list_experts[budget] = expert
+            if '.pt' in f:
+                expert_path = os.path.join(path, f)
+                # load the model
+                expert = torch.load(expert_path)
+                expert.eval()
+                # get the expert's budget
+                budget = int(re.findall(r'([0-9]+)\.pt', f)[0])
+                # append the model to the list
+                list_experts[budget] = expert
     else:
         raise ValueError("no directory found at given path")
 
