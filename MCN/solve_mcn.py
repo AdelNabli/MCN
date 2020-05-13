@@ -45,15 +45,30 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             value, D, I, P = solve_mcn_exact(G, Omega, Phi, Lambda)
             val_D = np.sum(weights[D])
             val_P = np.sum(weights[P])
-            return (value - val_D - val_P, D, I, P)
+            residual = Omega - len(D) + Lambda - len(P)
+            if residual > 0:
+                set_not_removed = set(G.nodes()) - set(D) - set(P)
+                w_sorted = sorted(weights[list(set_not_removed)])
+                val_rest = np.sum(w_sorted[:residual])
+            return (value - val_D - val_P - val_rest, D, I, P)
         elif player == 1:
             I, _, P, value = AP(G, Phi, Lambda, target=1, J=J)
             val_P = np.sum(weights[P])
-            return (value - val_P, [], I, P)
+            residual = Lambda - len(P)
+            if residual > 0:
+                set_not_removed = set(G.nodes()) - set(P)
+                w_sorted = sorted(weights[list(set_not_removed)])
+                val_rest = np.sum(w_sorted[:residual])
+            return (value - val_P - val_rest, [], I, P)
         elif player == 2:
             value, _, P = solve_defender(J, G, Lambda)
             val_P = np.sum(weights[P])
-            return (value - val_P, [], [], P)
+            residual = Lambda - len(P)
+            if residual > 0:
+                set_not_removed = set(G.nodes()) - set(P)
+                w_sorted = sorted(weights[list(set_not_removed)])
+                val_rest = np.sum(w_sorted[:residual])
+            return (value - val_P - val_rest, [], [], P)
     else:
         return solve_mcn_heuristic(
             list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=J, exact_protection=exact_protection

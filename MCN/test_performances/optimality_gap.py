@@ -83,18 +83,23 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
         budget_values_heuristic.append([])
         # Iterate over the instances in the dataset
         for instance in dataset:
-            value_heuristic, _,_,_ = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
-                                               J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
-                                               Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
-                                               exact_protection=exact_protection)
+            value_heuristic, D_heur, I_heur, P_heur = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
+                                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
+                                                                Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
+                                                                exact_protection=exact_protection)
             # re-add the values of the nodes removed with the defender's moves
             is_weighted = len(nx.get_node_attributes(instance.G, 'weight').values()) != 0
             if is_weighted:
                 weights = np.array([instance.G.nodes[node]['weight'] for node in instance.G.nodes()])
             else:
                 weights = np.ones(len(instance.G))
-            value_heuristic += np.sum(weights[instance.D]) + np.sum(weights[instance.P])
-            value_exact = instance.value + np.sum(weights[instance.D]) + np.sum(weights[instance.P])
+            residual = instance.Omega - len(instance.D) + instance.Lambda - len(instance.P)
+            if residual > 0:
+                set_not_removed = set(instance.G.nodes()) - set(instance.D) - set(instance.P)
+                w_sorted = sorted(weights[list(set_not_removed)])
+                val_rest = np.sum(w_sorted[:residual])
+            value_heuristic += np.sum(weights[D_heur]) + np.sum(weights[P_heur])
+            value_exact = instance.value + np.sum(weights[instance.D]) + np.sum(weights[instance.P]) + val_rest
             # add the values to memory
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)
