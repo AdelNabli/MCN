@@ -48,7 +48,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             residual = Omega - len(D) + Lambda - len(P)
             val_rest = 0
             if residual > 0:
-                set_not_removed = set(G.nodes()) - set(D) - set(P)
+                set_not_removed = set(G.nodes()) - set(D) - set(P) - set(I)
                 w_sorted = sorted(weights[list(set_not_removed)])
                 val_rest = np.sum(w_sorted[:residual])
             return (value - val_D - val_P - val_rest, D, I, P)
@@ -58,7 +58,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             residual = Lambda - len(P)
             val_rest = 0
             if residual > 0:
-                set_not_removed = set(G.nodes()) - set(P)
+                set_not_removed = set(G.nodes()) - set(P) - set(I)
                 w_sorted = sorted(weights[list(set_not_removed)])
                 val_rest = np.sum(w_sorted[:residual])
             return (value - val_P - val_rest, [], I, P)
@@ -68,7 +68,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             residual = Lambda - len(P)
             val_rest = 0
             if residual > 0:
-                set_not_removed = set(G.nodes()) - set(P)
+                set_not_removed = set(G.nodes()) - set(P) - set(J)
                 w_sorted = sorted(weights[list(set_not_removed)])
                 val_rest = np.sum(w_sorted[:residual])
             return (value - val_P - val_rest, [], [], P)
