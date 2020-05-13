@@ -46,6 +46,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             val_D = np.sum(weights[D])
             val_P = np.sum(weights[P])
             residual = Omega - len(D) + Lambda - len(P)
+            val_rest = 0
             if residual > 0:
                 set_not_removed = set(G.nodes()) - set(D) - set(P)
                 w_sorted = sorted(weights[list(set_not_removed)])
@@ -55,6 +56,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             I, _, P, value = AP(G, Phi, Lambda, target=1, J=J)
             val_P = np.sum(weights[P])
             residual = Lambda - len(P)
+            val_rest = 0
             if residual > 0:
                 set_not_removed = set(G.nodes()) - set(P)
                 w_sorted = sorted(weights[list(set_not_removed)])
@@ -64,6 +66,7 @@ def solve_mcn(G, Omega, Phi, Lambda, J=[], Omega_max=0, Phi_max=0, Lambda_max=0,
             value, _, P = solve_defender(J, G, Lambda)
             val_P = np.sum(weights[P])
             residual = Lambda - len(P)
+            val_rest = 0
             if residual > 0:
                 set_not_removed = set(G.nodes()) - set(P)
                 w_sorted = sorted(weights[list(set_not_removed)])

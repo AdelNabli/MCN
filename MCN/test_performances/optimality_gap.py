@@ -94,6 +94,7 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
             else:
                 weights = np.ones(len(instance.G))
             residual = instance.Omega - len(instance.D) + instance.Lambda - len(instance.P)
+            val_rest = 0
             if residual > 0:
                 set_not_removed = set(instance.G.nodes()) - set(instance.D) - set(instance.P)
                 w_sorted = sorted(weights[list(set_not_removed)])
