@@ -135,7 +135,10 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
             # add the instance to the data
             data.append(instance_torch)
     else:
-        batch_instances = batch_size // (Lambda_max + Omega_max + Phi_max + n_free_max)
+        min_size_instance = n_free_min + Budget
+        max_size_instance = n_free_max + Budget
+        mean_size_instance = (max_size_instance - min_size_instance) // 2
+        batch_instances = batch_size // mean_size_instance
         n_iterations = total_size // batch_instances + 1 * (total_size % batch_instances > 0)
         for k in tqdm(range(n_iterations)):
             # Sample a batch of random instance
