@@ -59,7 +59,7 @@ class Environment(object):
                 self.next_n_nodes,
                 dtype=torch.float,
             )
-                .view([self.next_n_free, 1])
+                .view([len(self.id_graphs), 1])
                 .to(device)
         )
         self.next_n_nodes_tensor = self.next_n_nodes_tensor[self.id_graphs]
