@@ -37,7 +37,7 @@ class Environment(object):
         self.update_budgets()
         self.next_player = get_player(self.next_Omega, self.next_Phi, self.next_Lambda)
         self.compute_all_possible_afterstates()
-        self.next_n_nodes = [len(G) for G in self.next_G]
+        self.next_n_nodes = [len(G) for G in self.next_list_G_nx]
         self.compute_next_state_tensors()
 
     def step(self, actions):
@@ -59,11 +59,9 @@ class Environment(object):
                 self.next_n_nodes,
                 dtype=torch.float,
             )
-                .view([len(self.id_graphs), 1])
+                .view([len(self.next_n_nodes), 1])
                 .to(device)
         )
-        self.next_n_nodes_tensor = self.next_n_nodes_tensor[self.id_graphs]
-
         self.next_Omega_tensor = self.next_Omega * torch.ones(self.next_n_nodes_tensor.size(), dtype=torch.float).to(device)
         self.next_Phi_tensor = self.next_Phi * torch.ones(self.next_n_nodes_tensor.size(), dtype=torch.float).to(device)
         self.next_Lambda_tensor = self.next_Lambda * torch.ones(self.next_n_nodes_tensor.size(), dtype=torch.float).to(device)
