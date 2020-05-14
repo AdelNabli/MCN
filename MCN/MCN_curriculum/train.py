@@ -244,7 +244,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                 " \n Loss of the current value net: %f" % float(loss),
                 " \n Loss val of the current value net: %f" % targets_experts.loss_value_net,
                 " \n Losses of the experts on val set: ", targets_experts.losses_validation_sets,
-                " \n Losses on test set : ", losses_test,
+                " \n Losses on test set : ", targets_experts.losses_test_set,
             )
             # Saves model
             save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
