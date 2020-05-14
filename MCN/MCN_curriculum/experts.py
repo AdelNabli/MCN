@@ -81,7 +81,7 @@ class TargetExperts(object):
 
             self.Budget_target = Budget_trained + 1
 
-    def test_update_target_nets(self, value_net, val_generator, test_generator):
+    def test_update_target_nets(self, value_net, val_generator, test_generator=None):
 
         """Test the current value net against the saved expert on the current validation set
         and keep the best of both as the current target net"""
@@ -134,8 +134,9 @@ class TargetExperts(object):
             # we update both the current target net and loss
             self.list_target_nets[id_slot] = new_target_net
             self.losses_validation_sets[id_slot] = loss_value_net
-            self.losses_test_set[id_slot] = compute_loss_test(
-                test_generator,
-                list_experts=self.list_target_nets,
-                id_to_test=id_slot,
-            )[0]
+            if test_generator is not None:
+                self.losses_test_set[id_slot] = compute_loss_test(
+                    test_generator,
+                    list_experts=self.list_target_nets,
+                    id_to_test=id_slot,
+                )[0]
