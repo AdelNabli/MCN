@@ -96,7 +96,7 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
             residual = instance.Omega - len(instance.D) + instance.Lambda - len(instance.P)
             val_rest = 0
             if residual > 0:
-                set_not_removed = set(instance.G.nodes()) - set(instance.D) - set(instance.P)
+                set_not_removed = set(instance.G.nodes()) - set(instance.D) - set(instance.P) - set(instance.J) - set(instance.I)
                 w_sorted = sorted(weights[list(set_not_removed)])
                 val_rest = np.sum(w_sorted[:residual])
             value_heuristic += np.sum(weights[D_heur]) + np.sum(weights[P_heur])

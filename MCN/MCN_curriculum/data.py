@@ -4,7 +4,8 @@ import os
 from tqdm import tqdm
 from torch_geometric.data import Batch
 from torch.utils.data import Dataset, DataLoader
-from MCN.utils import generate_random_instance, instance_to_torch, InstanceTorch
+from MCN.utils import generate_random_instance, generate_random_batch_instance, instance_to_torch, InstanceTorch
+from MCN.MCN_curriculum.mcn_heuristic import solve_mcn_heuristic_batch
 from MCN.solve_mcn import solve_mcn
 
 
@@ -98,40 +99,75 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
     total_size = total_size - len(data)
 
     # We create the instances that are currently lacking in the datasets
-    for k in tqdm(range(total_size)):
-        # Sample a random instance
-        instance = generate_random_instance(
-            n_free_min,
-            n_free_max,
-            d_edge_min,
-            d_edge_max,
-            Omega_max,
-            Phi_max,
-            Lambda_max,
-            Budget,
-            weighted,
-            w_max,
-            directed,
-        )
-        # Solves the mcn problem
-        value, _, _, _ = solve_mcn(
-            instance.G,
-            instance.Omega,
-            instance.Phi,
-            instance.Lambda,
-            J=instance.J,
-            Omega_max=Omega_max,
-            Phi_max=Phi_max,
-            Lambda_max=Lambda_max,
-            exact=solve_exact,
-            list_experts=list_experts,
-            exact_protection=exact_protection,
-        )
-        instance.value = value
-        # Transform the instance to a InstanceTorch object
-        instance_torch = instance_to_torch(instance)
-        # add the instance to the data
-        data.append(instance_torch)
+    if exact_protection:
+        for k in tqdm(range(total_size)):
+            # Sample a random instance
+            instance = generate_random_instance(
+                n_free_min,
+                n_free_max,
+                d_edge_min,
+                d_edge_max,
+                Omega_max,
+                Phi_max,
+                Lambda_max,
+                Budget,
+                weighted,
+                w_max,
+                directed,
+            )
+            # Solves the mcn problem
+            value, _, _, _ = solve_mcn(
+                instance.G,
+                instance.Omega,
+                instance.Phi,
+                instance.Lambda,
+                J=instance.J,
+                Omega_max=Omega_max,
+                Phi_max=Phi_max,
+                Lambda_max=Lambda_max,
+                exact=solve_exact,
+                list_experts=list_experts,
+                exact_protection=exact_protection,
+            )
+            instance.value = value
+            # Transform the instance to a InstanceTorch object
+            instance_torch = instance_to_torch(instance)
+            # add the instance to the data
+            data.append(instance_torch)
+    else:
+        batch_instances = batch_size // (Lambda_max + Omega_max + Phi_max + n_free_max)
+        n_iterations = total_size // batch_instances + 1 * (total_size % batch_instances > 0)
+        for k in tqdm(range(n_iterations)):
+            # Sample a batch of random instance
+            list_instances = generate_random_batch_instance(
+                batch_instances,
+                n_free_min,
+                n_free_max,
+                d_edge_min,
+                d_edge_max,
+                Omega_max,
+                Phi_max,
+                Lambda_max,
+                Budget,
+                weighted,
+                w_max,
+                directed,
+            )
+            # Solves the mcn problem
+            values = solve_mcn_heuristic_batch(
+                list_experts,
+                list_instances,
+                Omega_max,
+                Phi_max,
+                Lambda_max,
+            )
+            for i in range(batch_instances):
+                list_instances[i].value = values[i]
+                # Transform the instance to a InstanceTorch object
+                instance_torch = instance_to_torch(list_instances[i])
+                # add the instance to the data
+                data.append(instance_torch)
+
 
     # Save the data if there is a change in the dataset
     if len_data_train != size_train_data or total_size > 0:
@@ -219,6 +255,7 @@ def generate_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max,
             # save the value, P, D in the Instance object
             instance_budget_k.value = value
             instance_budget_k.D = D
+            instance_budget_k.I = I
             instance_budget_k.P = P
             # pushes it to memory
             test_set_budget.append(instance_budget_k)

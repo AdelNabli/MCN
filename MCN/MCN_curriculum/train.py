@@ -224,8 +224,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                 # Compute the loss of the batch
                 loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
                 # Compute the loss on the Validation set
-                targets_experts.test_update_target_nets(value_net, val_generator)
-                losses_test = compute_loss_test(test_set_generators, list_experts=targets_experts.list_target_nets)
+                targets_experts.test_update_target_nets(value_net, val_generator, test_set_generators)
                 # Update the parameters of the Value_net
                 loss.backward()
                 optimizer.step()
@@ -236,9 +235,9 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                                   count,
                                   )
                 writer.add_scalar("Loss validation", targets_experts.loss_value_net, count)
-                for k in range(len(losses_test)):
+                for k in range(len(targets_experts.losses_test_set)):
                     name_loss = 'Loss test budget ' + str(k + 1)
-                    writer.add_scalar(name_loss, float(losses_test[k]), count)
+                    writer.add_scalar(name_loss, float(targets_experts.losses_test_set[k]), count)
                 count += 1
 
             # Print the information of the epoch

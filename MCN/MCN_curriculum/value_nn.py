@@ -56,12 +56,10 @@ class NodeEncoder(nn.Module):
         # if the graph is weighted
         self.weighted = weighted
         if weighted:
-            # there are 4 features that are added to the input data
-            ## first_dim = dim_input + 3
+            # there are 2 features that are added to the input data
             first_dim = dim_input + 2
         else:
-            # else, only 2 features are added
-            ##first_dim = dim_input + 2
+            # else, only 1 feature added
             first_dim = dim_input + 1
         self.n_att_layers = n_att_layers
         self.Lin1 = nn.Linear(first_dim, dim_embedding)
@@ -72,12 +70,11 @@ class NodeEncoder(nn.Module):
         )
         self.power = APPNP(K, alpha, bias=False).to(device)
 
-    def forward(self, G_torch, J, saved_nodes, infected_nodes, size_connected):
+    def forward(self, G_torch, J):
 
         # retrieve the data
         x, edge_index, batch = G_torch.x, G_torch.edge_index, G_torch.batch
         # gather together the node features with J and size_connected
-        ##h = torch.cat([x, J, size_connected], 1)
         h = torch.cat([x, J], 1)
         # if we are considering weighted graphs
         if self.weighted:
@@ -94,11 +91,9 @@ class NodeEncoder(nn.Module):
         # apply the power layer
         h = self.power(h, edge_index)
         # re-add the information about the node's state
-        ##h = torch.cat([h, size_connected, J, saved_nodes, infected_nodes], 1)
         h = torch.cat([h, J], 1)
         # if we are considering weighted graphs
         if self.weighted:
-            ##h = torch.cat([h, weights_norm, saved_nodes*weights_norm, infected_nodes*weights_norm], 1)
             h = torch.cat([h, weights_norm], 1)
         G_torch.x = h
 
@@ -115,12 +110,10 @@ class ContextEncoder(nn.Module):
 
         self.weighted = weighted
         if weighted:
-            # there are 8 features that are added to the input data
-            ##first_dim = dim_embedding + 7
+            # there are 2 features that are added to the input data
             first_dim = dim_embedding + 2
         else:
-            # else, only 4 features are added
-            ##first_dim = dim_embedding + 4
+            # else, only 1 feature is added
             first_dim = dim_embedding + 1
 
         self.n_pool = n_pool
@@ -197,11 +190,9 @@ class ValueNet(nn.Module):
         # Score for each node
         if weighted:
             dim_context = dim_embedding * n_pool + 8
-            ##first_dim = dim_context + dim_embedding + 7
             first_dim = dim_context + dim_embedding + 2
         else:
             dim_context = dim_embedding * n_pool + 7
-            ##first_dim = dim_context + dim_embedding + 4
             first_dim = dim_context + dim_embedding + 1
         self.lin1 = nn.Linear(first_dim, dim_hidden)
         self.BN1 = BatchNorm(dim_hidden)
@@ -212,8 +203,7 @@ class ValueNet(nn.Module):
         self.dropout = nn.Dropout(p=p)
 
 
-    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm,
-                J, saved_nodes, infected_nodes, size_connected):
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J):
         """ Take a batch of states as input and returns a the values of each state.
 
                 Parameters:
@@ -238,23 +228,13 @@ class ValueNet(nn.Module):
                 J: float tensor (size = nb tot of nodes x 1),
                    indicator 1_{node infected} for each node
                    in each graph in the batch
-                saved_nodes: float tensor (size = nb tot of nodes x 1),
-                             indicator 1_{node currently saved} for each node
-                             in each graph in the batch
-                infected_nodes: float tensor (size = nb tot of nodes x 1),
-                                indicator 1_{node currently infected}
-                                for each node in each graph in the batch
-                size_connected: float tensor (size = nb tot of nodes x 1),
-                                size of the component component each node
-                                belongs to in each graph in the batch
-                                (normalized by the size of the graph)
 
                 Returns:
                 -------
                 score_state: float tensor (size = Batch x 1),
                              score of each possible afterstate"""
 
-        G = self.node_encoder(G_torch, J, saved_nodes, infected_nodes, size_connected)
+        G = self.node_encoder(G_torch, J)
         context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
         # retrieve the data from G
         x, edge_index, batch = G.x, G.edge_index, G.batch

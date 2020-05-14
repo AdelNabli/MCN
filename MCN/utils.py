@@ -5,6 +5,7 @@ import torch
 import networkx as nx
 import random
 import matplotlib.pyplot as plt
+from torch_scatter import scatter_max, scatter_min
 from torch_geometric.data import Batch
 from torch_geometric.utils import from_networkx
 from torch_geometric.transforms import LocalDegreeProfile
@@ -270,11 +271,124 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
     return instance
 
 
+def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_min, d_edge_max,
+                                   Omega_max, Phi_max, Lambda_max, Budget_target=np.nan,
+                                   weighted=False, w_max=1, directed=False):
+    r"""Generate a random instance of the MCN problem corresponding
+    to the stage of the training we are in if Budget_target is defined.
+    Else, we generate a random instance of the MCN problem.
+    The parameters of the distribution of instances are
+    the number of free nodes in the graph (i.e nodes that won't
+    be defended nor attacked) and the maximum budget we allow
+    for each player (given that an instance of MCN should have
+    at least one unit of budget reserved for the attacker).
+
+    Parameters:
+    ----------
+    n_free_min: int,
+                the minimal number of free nodes
+                in the graph we will generate
+    n_free_max: int,
+                the maximal number of free nodes
+    d_edge_min: float \in [0,1],
+                minimal edge density of the graphs considered
+    d_edge_max: float \in [0,1],
+                maximal edge density of the graphs considered
+    Omega_max: int,
+               the maximal vaccination budget
+    Phi_max: int,
+             the maximal attack budget
+             must be > 0, otherwise there is no MCN problem
+    Lambda_max: int,
+                the maximal protection budget
+    Budget_target: int,
+                   the total budget we are considering
+                   at this stage of the training procedure
+                   (\in [1, Omega_max+Phi_max+Lambda_max])
+    weighted: bool,
+              whether to create weights for the nodes or not
+    w_max: int,
+           the maximum weight a node can have
+    directed: bool,
+              whether or not the graph is directed
+
+    Returns:
+    -------
+    instance: Instance object"""
+
+    # if we generate an instance for the training procedure
+    if Budget_target is not np.nan:
+        # if the target net is learning the protection values
+        if Budget_target <= Lambda_max:
+            Omega = np.zeros(batch_size)
+            Phi = np.zeros(batch_size)
+            Lambda = Budget_target * np.ones(batch_size)
+            # we need to attack some nodes in order
+            # to learn the protection
+            Phi_attacked = np.random.randint(1, Phi_max + 1, size=batch_size)
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = np.random.randint(0, Lambda_max - Lambda + 1, size=batch_size)
+            Omega_del = np.random.randint(0, Omega_max + 1, size=batch_size)
+        # if the target net is learning the attack values
+        elif Budget_target <= Phi_max + Lambda_max:
+            Omega = np.zeros(batch_size)
+            Phi = (Budget_target - Lambda_max) * np.ones(batch_size)
+            Lambda = np.random.randint(0, Lambda_max + 1)
+            remaining_attack_budget = Phi_max - Phi
+            Phi_attacked = np.random.randint(0, remaining_attack_budget + 1, size=batch_size)
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = np.zeros(batch_size)
+            Omega_del = np.random.randint(0, Omega_max + 1, size=batch_size)
+        # else, the target net is learning the vaccination values
+        elif Budget_target <= Omega_max + Phi_max + Lambda_max:
+            Omega = (Budget_target - (Phi_max + Lambda_max)) * np.ones(batch_size)
+            # we oblige that at least one node is attacked
+            Phi = np.random.randint(1, Phi_max + 1) * np.ones(batch_size)
+            Lambda = np.random.randint(0, Lambda_max + 1) * np.ones(batch_size)
+            Phi_attacked = np.zeros(batch_size)
+            # add some random "already defended" nodes
+            # that we will remove from the graph
+            Lambda_del = np.zeros(batch_size)
+            Omega_del = np.random.randint(0, Omega_max - Omega + 1, size=batch_size)
+
+
+    # random number of nodes
+    n_free = random.randrange(n_free_min, n_free_max, size=batch_size)
+    n = n_free + Omega + Phi + Lambda + Omega_del + Phi_attacked + Lambda_del
+    # random density
+    d = d_edge_min + (d_edge_max - d_edge_min)*np.random.random(size=batch_size)
+    # Generate a batch of instances
+    instance_batch = []
+    for k in range(batch_size):
+        # Generate the graph
+        G = generate_random_graph(n[k], d[k], directed=directed, draw=False)
+        # Generate a random defense
+        defended_nodes = np.random.choice(n[k], Omega_del[k] + Lambda_del[k], replace=False)
+        if Omega_del[k] + Lambda_del[k] > 0:
+            # delete the nodes defended
+            G.remove_nodes_from(defended_nodes)
+            # relabel the nodes so that they are labeled from 0 to nb_nodes
+            G = nx.convert_node_labels_to_integers(G)
+        # Generate the attack
+        I = list(np.random.choice(range(n[k] - Omega_del[k] - Lambda_del[k]), Phi_attacked[k], replace=False))
+        # Generate the weights
+        if weighted:
+            for node in G.nodes():
+                G.nodes[node]['weight'] = random.randint(1, w_max)
+        # Create the instance
+        instance_k = Instance(G, Omega[k], Phi[k], Lambda[k], I, value=0)
+        instance_batch.append(instance_k)
+
+    return instance_batch
+
+
 class Instance:
 
     """Creates an instance object to store the parameters defining an instance"""
 
-    def __init__(self, G, Omega, Phi, Lambda, J, value, D=None, P=None):
+    def __init__(self, G, Omega, Phi, Lambda, J, value, D=None, I=None, P=None):
         """
         Parameters:
         ----------
@@ -301,6 +415,7 @@ class Instance:
         self.J = J
         self.value = value
         self.D = D
+        self.I = I
         self.P = P
 
 
@@ -309,8 +424,7 @@ class InstanceTorch:
     """Creates an instance object to store all the tensors necessary to compute
     the approximate values with the ValueNet"""
 
-    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J,
-                 saved_nodes, infected_nodes, size_connected, target):
+    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J, target=None):
 
         self.G_torch = G_torch
         self.n_nodes = n_nodes
@@ -321,9 +435,6 @@ class InstanceTorch:
         self.Phis_norm = Phis_norm
         self.Lambdas_norm = Lambdas_norm
         self.J = J
-        self.saved_nodes = saved_nodes
-        self.infected_nodes = infected_nodes
-        self.size_connected = size_connected
         self.target = target
 
 
@@ -333,25 +444,22 @@ def instance_to_torch(instance):
 
     # Transform the graph
     G_torch = graph_torch(instance.G)
-    # Compute the features from the connected components
-    (
-        _,
-        J,
-        saved_nodes,
-        infected_nodes,
-        size_connected,
-    ) = features_connected_comp(instance.G, instance.J)
     # Put the number of nodes into a tensor
     n = len(instance.G)
     n_nodes = torch.tensor([n], dtype=torch.float).view([1, 1]).to(device)
-    # Put the normalized budgets into tensors
-    Omega_norm = torch.tensor([instance.Omega / n], dtype=torch.float).view([1, 1]).to(device)
-    Lambda_norm = torch.tensor([instance.Lambda / n], dtype=torch.float).view([1, 1]).to(device)
-    Phi_norm = torch.tensor([instance.Phi / n], dtype=torch.float).view([1, 1]).to(device)
+    # Create J
+    J = torch.zeros(n, dtype=torch.float).to(device)
+    J[instance.J] = 1.
+    J = J.view([n, 1])
     # Put the budgets into tensors
     Omega_tensor = torch.tensor([instance.Omega], dtype=torch.float).view([1, 1]).to(device)
     Lambda_tensor = torch.tensor([instance.Lambda], dtype=torch.float).view([1, 1]).to(device)
     Phi_tensor = torch.tensor([instance.Phi], dtype=torch.float).view([1, 1]).to(device)
+    # Put the normalized budgets into tensors
+    Omega_norm = Omega_tensor / n
+    Lambda_norm = Lambda_tensor / n
+    Phi_norm = Phi_tensor / n
+
     # Put the value into a tensor
     target = torch.tensor([instance.value], dtype=torch.float).view([1, 1]).to(device)
     # Gather everything into a single InstanceTorch object
@@ -365,9 +473,6 @@ def instance_to_torch(instance):
         Phi_norm,
         Lambda_norm,
         J,
-        saved_nodes,
-        infected_nodes,
-        size_connected,
         target,
     )
 
@@ -473,86 +578,6 @@ def compute_saved_nodes(G, I):
     return value
 
 
-def features_connected_comp(G, I):
-    """Compute the features of a given instance (G,I) related to
-    the connected components of G
-
-    Parameters:
-    ----------
-    G: networkx graph
-    I: list of ints,
-       list of the ids of the attacked nodes of G
-
-    Returns:
-    -------
-    value: int,
-           the value of the saved nodes
-    J_tensor: float tensor,
-              indicator 1_{node \in I}
-    indic_saved: float tensor,
-                 indicator 1_{node saved}
-    indic_infected: float tensor,
-                    indicator 1_{node infected}
-    size_connected_tensor: float tensor,
-                           the size of the connected component
-                           each node belongs to
-                           (divided by the size of G)"""
-
-    n = len(G)
-    # Initialize the variables
-    value = 0
-    connected_infected = set()
-    size_connected = [1] * n
-    is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
-    is_directed = False in [(v, u) in G.edges() for (u, v) in G.edges()]
-    # Gather the weights
-    if is_weighted:
-        weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
-        sum_weights = np.sum(weights)
-    else:
-        weights = np.ones(n)
-        sum_weights = n
-    # Compute the features in the directed case
-    if is_directed:
-        for node in G.nodes():
-            connected = set(u for u in nx.dfs_preorder_nodes(G, node))
-            size_connected[node] = np.sum(weights[list(connected)]) / sum_weights
-            if node in I:
-                connected_infected = connected_infected.union(connected)
-        value = np.sum(weights[list(set(G.nodes()) - connected_infected)])
-    else:
-        # insure G is undirected
-        G1 = G.to_undirected()
-        for c in nx.connected_components(G1):
-            size_c = np.sum(weights[list(c)])
-            # update the vector of size of the connected comp
-            for node in c:
-                # we normalize the size by the total size of the graph
-                size_connected[node] = size_c / sum_weights
-            # a connected component is saved if
-            # there is not any attacked node inside it
-            if set(I).intersection(c) == set():
-                value += size_c
-            else:
-                connected_infected = connected_infected.union(c)
-
-    # transform the variables to tensor
-    # init the tensors
-    J_tensor = np.zeros(n)
-    indic_saved = np.ones(n)
-    indic_infected = np.zeros(n)
-    # compute the one hot encoding
-    J_tensor[I] = 1
-    indic_infected[list(connected_infected)] = 1
-    indic_saved -= indic_infected
-    J_tensor = torch.tensor(J_tensor, dtype=torch.float).view([n, 1]).to(device)
-    indic_saved = torch.tensor(indic_saved, dtype=torch.float).view([n, 1]).to(device)
-    indic_infected = torch.tensor(indic_infected, dtype=torch.float).view([n, 1]).to(device)
-    size_connected_tensor = torch.tensor(size_connected, dtype=torch.float).view([n, 1]).to(device)
-
-    return (value, J_tensor, indic_saved, indic_infected, size_connected_tensor)
-
-
 def get_player(Omega, Phi, Lambda):
     """Returns the player whose turn it is to play
     given the budgets.
@@ -645,6 +670,66 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
         value = float(targets.max())
 
     return action, targets, value
+
+
+def take_action_deterministic_batch(target_net, player, next_player, rewards, next_afterstates,
+                                    id_graphs=None, **kwargs):
+    """Given the current situation and the player whose turn it is to play,
+    decides of the best action to take with respect to the exact or approximate
+    values of all of the possible afterstates.
+
+    Parameters:
+    ----------
+    target_net: Pytorch neural network (module),
+                the value network for the possible afterstates
+    player: int,
+            id of the current player:
+            0 --> vaccinator
+            1 --> attacker
+            2 --> protector
+            3 --> end of the game
+    next_player: int,
+                 id of the next player
+    rewards: float tensor,
+             the reward of each afterstate
+    next_afterstates: list of Pytorch Geometric Data objects,
+                      list of the possible afterstates
+
+    Returns:
+    -------
+    action: int,
+            the id of the optimal afterstate amoung all the ones possible
+    targets: float tensor,
+             the values of each of the possible afterstates
+    value: float,
+           the value of the afterstate chosen with action"""
+
+    if id_graphs is None:
+        n_nodes = sum([len(afterstate) for afterstate in next_afterstates])
+        id_graphs = torch.zeros(size=(n_nodes,), dtype=torch.int64).to(device)
+    # if the game is finished in the next turn
+    # we know what is the best action to take
+    # because we have the true rewards available
+    if next_player == 3:
+        # the targets are the true values
+        targets = rewards
+    # if it's not the end state,
+    # we sample from the values
+    else:
+        with torch.no_grad():
+            # Create a Batch of graphs
+            G_torch = Batch.from_data_list(next_afterstates).to(device)
+            # We compute the target values
+            targets = target_net(G_torch, **kwargs)
+    # if it's the turn of the attacker
+    if player == 1:
+        # we take the argmin
+        values, actions = scatter_min(targets, id_graphs, dim=0)
+    else:
+        # we take the argmax
+        values, actions = scatter_max(targets, id_graphs, dim=0)
+
+    return actions.view(-1).tolist(), targets, values.view(-1).tolist()
 
 
 def sample_action(neural_net, player, next_player, rewards, next_afterstates,
@@ -810,14 +895,18 @@ def count_param_NN(torch_module):
     return n_param
 
 
-def compute_loss_test(test_set_generators, value_net=None, list_experts=None):
+def compute_loss_test(test_set_generators, value_net=None, list_experts=None, id_to_test=None):
 
     """Compute the list of losses of the value_net or the list_of_experts
     over the list of exactly solved datasets that constitutes the test set"""
 
     list_losses = []
     with torch.no_grad():
-        for k in range(len(test_set_generators)):
+        if id_to_test is None:
+            iterator = range(len(test_set_generators))
+        else:
+            iterator = [id_to_test]
+        for k in iterator:
             target = []
             val_approx = []
             if list_experts is not None:
