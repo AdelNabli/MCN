@@ -365,14 +365,14 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
         # Generate the graph
         G = generate_random_graph(int(n[k]), d[k], directed=directed, draw=False)
         # Generate a random defense
-        defended_nodes = np.random.choice(n[k], Omega_del[k] + Lambda_del[k], replace=False)
+        defended_nodes = np.random.choice(int(n[k]), int(Omega_del[k] + Lambda_del[k]), replace=False)
         if Omega_del[k] + Lambda_del[k] > 0:
             # delete the nodes defended
             G.remove_nodes_from(defended_nodes)
             # relabel the nodes so that they are labeled from 0 to nb_nodes
             G = nx.convert_node_labels_to_integers(G)
         # Generate the attack
-        I = list(np.random.choice(range(n[k] - Omega_del[k] - Lambda_del[k]), Phi_attacked[k], replace=False))
+        I = list(np.random.choice(range(int(n[k] - Omega_del[k] - Lambda_del[k])), int(Phi_attacked[k]), replace=False))
         # Generate the weights
         if weighted:
             for node in G.nodes():
