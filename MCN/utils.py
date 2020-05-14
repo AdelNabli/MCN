@@ -363,7 +363,7 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
     instance_batch = []
     for k in range(batch_size):
         # Generate the graph
-        G = generate_random_graph(n[k], d[k], directed=directed, draw=False)
+        G = generate_random_graph(int(n[k]), d[k], directed=directed, draw=False)
         # Generate a random defense
         defended_nodes = np.random.choice(n[k], Omega_del[k] + Lambda_del[k], replace=False)
         if Omega_del[k] + Lambda_del[k] > 0:
