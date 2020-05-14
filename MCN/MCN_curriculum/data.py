@@ -34,7 +34,7 @@ def collate_fn(list_instances, for_dqn=False):
     """Given a list of instances, gather them all into a single instance"""
 
     # Initialize the collated instance
-    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     # Create a batch data object from Pytorch Geometric
     if for_dqn:
         # if we are to use the function with the dqn baseline,
@@ -57,9 +57,6 @@ def collate_fn(list_instances, for_dqn=False):
     instances_collated.Phis_norm = torch.cat([instances.Phis_norm for instances in list_instances])
     instances_collated.Lambdas_norm = torch.cat([instances.Lambdas_norm for instances in list_instances])
     instances_collated.J = torch.cat([instances.J for instances in list_instances])
-    instances_collated.saved_nodes = torch.cat([instances.saved_nodes for instances in list_instances])
-    instances_collated.infected_nodes = torch.cat([instances.infected_nodes for instances in list_instances])
-    instances_collated.size_connected = torch.cat([instances.size_connected for instances in list_instances])
     instances_collated.target = torch.cat([instances.target for instances in list_instances])
 
     return instances_collated
@@ -99,6 +96,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
     total_size = total_size - len(data)
 
     # We create the instances that are currently lacking in the datasets
+    # If we need the exact protection, we solve one instance at a time
     if exact_protection:
         for k in tqdm(range(total_size)):
             # Sample a random instance
@@ -134,7 +132,9 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
             instance_torch = instance_to_torch(instance)
             # add the instance to the data
             data.append(instance_torch)
+    # Else, we can solve batches of instances together
     else:
+        # Compute the number of batches necessary to fill the memory
         min_size_instance = n_free_min + Budget
         max_size_instance = n_free_max + Budget
         mean_size_instance = (max_size_instance - min_size_instance) // 2
@@ -156,7 +156,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
                 w_max,
                 directed,
             )
-            # Solves the mcn problem
+            # Solves the mcn problem for the batch using the heuristic
             values = solve_mcn_heuristic_batch(
                 list_experts,
                 list_instances,
