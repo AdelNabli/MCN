@@ -34,7 +34,7 @@ class TargetExperts(object):
         self.Lambda_max = Lambda_max
         self.list_target_nets = [None] * (self.n_max - 1)
         self.losses_validation_sets = [math.inf] * (self.n_max - 1)
-        self.losses_test_set = [None] * (self.n_max - 1)
+        self.losses_test_set = [0] * (self.n_max - 1)
         self.loss_value_net = math.inf
         self.Budget_target = 1
         # If use the exact algorithm for protection, update the parameters
