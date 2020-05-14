@@ -334,7 +334,7 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
         elif Budget_target <= Phi_max + Lambda_max:
             Omega = np.zeros(batch_size)
             Phi = (Budget_target - Lambda_max) * np.ones(batch_size)
-            Lambda = np.random.randint(0, Lambda_max + 1)
+            Lambda = np.random.randint(0, Lambda_max + 1, size=batch_size)
             remaining_attack_budget = Phi_max - Phi
             Phi_attacked = np.random.randint(0, remaining_attack_budget + 1, size=batch_size)
             # add some random "already defended" nodes

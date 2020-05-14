@@ -1,7 +1,7 @@
 import networkx as nx
 import numpy as np
 from MCN.MCN_curriculum.environment import Environment
-from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player
+from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player, Instance
 from MCN.MCN_exact.attack_protect import AP
 from MCN.MCN_exact.defender import solve_defender
 
@@ -46,17 +46,12 @@ def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protectio
     )
 
 
-def solve_mcn_heuristic(list_experts, instance, Omega_max, Phi_max, Lambda_max, exact_protection=False):
+def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max, Lambda_max, J=[],
+                        exact_protection=False):
 
     """Given the list of target nets, an instance of the MCN problem and the maximum budgets
     allowed, solves the MCN problem using the list of experts"""
 
-    G = instance.G
-    Omega = instance.Omega
-    Phi = instance.Phi
-    Lambda = instance.Lambda
-    J = instance.J
-    # Get the player
     player = get_player(Omega, Phi, Lambda)
     # if it's the protector turn and we are to use the exact protector agent
     if player == 2 and exact_protection:
@@ -71,6 +66,7 @@ def solve_mcn_heuristic(list_experts, instance, Omega_max, Phi_max, Lambda_max, 
         return value - val_P, [], [], P
     else:
         # Initialize the environment
+        instance = Instance(G, Omega, Phi, Lambda, J, 0)
         env = Environment([instance])
         # list of actions for the episode
         actions_episode = []
