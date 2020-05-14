@@ -355,7 +355,7 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
 
 
     # random number of nodes
-    n_free = np.random.randinte(n_free_min, n_free_max + 1, size=batch_size)
+    n_free = np.random.randint(n_free_min, n_free_max + 1, size=batch_size)
     n = n_free + Omega + Phi + Lambda + Omega_del + Phi_attacked + Lambda_del
     # random density
     d = d_edge_min + (d_edge_max - d_edge_min)*np.random.random(size=batch_size)
