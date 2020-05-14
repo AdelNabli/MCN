@@ -13,7 +13,7 @@ from MCN.MCN_curriculum.data import load_create_datasets, load_create_test_set
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch,
+def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch, update_experts,
                     dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     weighted, w_max=1, directed=False,
@@ -221,7 +221,8 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                 # Compute the loss of the batch
                 loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
                 # Compute the loss on the Validation set
-                targets_experts.test_update_target_nets(value_net, val_generator, test_set_generators)
+                if count % update_experts == 0:
+                    targets_experts.test_update_target_nets(value_net, val_generator, test_set_generators)
                 # Update the parameters of the Value_net
                 loss.backward()
                 optimizer.step()
