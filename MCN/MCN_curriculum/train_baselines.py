@@ -259,10 +259,9 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         for k in range(len(instances_episode)):
             instance = instances_episode[k]
             instance.target = torch.tensor([value[k % size_batch_instances]], dtype=torch.float).view([1, 1]).to(device)
-            instance_torch = instance_to_torch(instance)
             if len(replay_memory) < size_memory:
                 replay_memory.append(None)
-            replay_memory[count_memory % size_memory] = instance_torch
+            replay_memory[count_memory % size_memory] = instance
             count_memory += 1
 
     # Compute how the neural networks we trained perform on the test set
