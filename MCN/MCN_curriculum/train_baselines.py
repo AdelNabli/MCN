@@ -30,7 +30,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
                              w_max=1, directed=False,
                              num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                             training_method='MC', exact_protection=False, rate_display=200):
+                             training_method='MC', exact_protection=False, rate_display=200, batch_unroll=None):
 
     """Train a neural network to solve the MCN problem either using Monte Carlo samples or with TD"""
 
@@ -63,9 +63,13 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     n_instance_before_epoch = batch_size
     # Compute the size of the batch of instances we can generate
     # and unroll in parallel
-    min_size_instance = n_free_min + 1
-    max_size_instance = n_free_max + max_budget
-    size_batch_instances = (max_size_instance - min_size_instance) // 2
+    if batch_unroll is None:
+        min_size_instance = n_free_min + 1
+        max_size_instance = n_free_max + max_budget
+        mean_size_instance = (max_size_instance - min_size_instance) // 2
+        size_batch_instances = batch_size // mean_size_instance
+    else:
+        size_batch_instances = batch_unroll
     n_episode_batch = n_episode // size_batch_instances
     # Init the value net
     value_net = ValueNet(

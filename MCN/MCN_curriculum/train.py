@@ -18,7 +18,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
                     n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
                     weighted, w_max=1, directed=False,
                     num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="",
-                    path_test_data=None, exact_protection=False, n_epoch_already_trained=0):
+                    path_test_data=None, exact_protection=False, n_epoch_already_trained=0, batch_unroll=None):
 
     r"""Training procedure. Follows the evolution of the training using tensorboard.
     Stores the neural networks each time a new task is learnt.
@@ -194,6 +194,7 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
             path_data,
             solve_exact=False,
             exact_protection=exact_protection,
+            batch_unroll=batch_unroll,
         )
         # Loop over epochs
         if first_epoch:

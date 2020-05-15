@@ -55,7 +55,7 @@ def collate_fn(list_instances):
 
 def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
                          d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, directed, Budget,
-                         list_experts, path_data, solve_exact=False, exact_protection=False):
+                         list_experts, path_data, solve_exact=False, exact_protection=False, batch_unroll=None):
 
     """Create or load the training and validation sets.
     Return two dataloaders to access both datasets.
@@ -126,10 +126,13 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
     # Else, we can solve batches of instances together
     else:
         # Compute the number of batches necessary to fill the memory
-        min_size_instance = n_free_min + Budget
-        max_size_instance = n_free_max + Budget
-        mean_size_instance = (max_size_instance - min_size_instance) // 2
-        batch_instances = batch_size // mean_size_instance
+        if batch_unroll is None:
+            min_size_instance = n_free_min + Budget
+            max_size_instance = n_free_max + Budget
+            mean_size_instance = (max_size_instance - min_size_instance) // 2
+            batch_instances = batch_size // mean_size_instance
+        else:
+            batch_instances = batch_unroll
         n_iterations = total_size // batch_instances + 1 * (total_size % batch_instances > 0)
         for k in tqdm(range(n_iterations)):
             # Sample a batch of random instance
