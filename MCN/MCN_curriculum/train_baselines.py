@@ -181,9 +181,6 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 Phis_norm=env.next_Phi_norm,
                 Lambdas_norm=env.next_Lambda_norm,
                 J=env.next_J_tensor,
-                saved_nodes=env.next_saved_tensor,
-                infected_nodes=env.next_infected_tensor,
-                size_connected=env.next_size_connected_tensor,
             )
             count_instances += size_batch_instances
             # Update the environment
@@ -216,9 +213,6 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     batch_instances.Phis_norm,
                     batch_instances.Lambdas_norm,
                     batch_instances.J,
-                    batch_instances.saved_nodes,
-                    batch_instances.infected_nodes,
-                    batch_instances.size_connected,
                 )
                 batch_target = batch_instances.target[:, 0]
                 # Init the optimizer
