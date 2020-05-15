@@ -3,6 +3,7 @@ from MCN.utils import (
     graph_torch,
     new_graph,
     get_player,
+    features_connected_comp,
     compute_saved_nodes,
     Instance,
     InstanceTorch,
