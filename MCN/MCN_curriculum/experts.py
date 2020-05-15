@@ -120,6 +120,9 @@ class TargetExperts(object):
                             batch_instances.Phis_norm,
                             batch_instances.Lambdas_norm,
                             batch_instances.J,
+                            batch_instances.saved_nodes,
+                            batch_instances.infected_nodes,
+                            batch_instances.size_connected,
                 )
                 val_approx.append(values_approx)
                 target.append(batch_instances.target)

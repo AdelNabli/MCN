@@ -10,7 +10,7 @@ from MCN.utils import (
     load_training_param,
     count_param_NN,
     generate_random_batch_instance,
-    sample_action,
+    sample_action_batch,
     Instance,
     InstanceTorch,
     instance_to_torch,
@@ -116,6 +116,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     # Init the counts
     count_steps = 0
     count_instances = 0
+    count_epochs = 0
     # Compute n_max
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     max_budget = Omega_max + Phi_max + Lambda_max - 1
@@ -194,6 +195,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     test_set_generators = load_create_test_set(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
                                                Lambda_max, weighted, w_max, directed, size_test_data, path_test_data,
                                                batch_size, num_workers)
+    losses_test = [0]*max_budget
 
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 
@@ -226,9 +228,10 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         while env.Budget >= 1:
             # update the environment
             env.compute_current_situation()
-            # save the current instance
-            current_instances = Instance(env.next_G, env.Omega, env.Phi, env.Lambda, env.next_J, 0)
-            instances_episode.append(current_instance)
+            # save the current instances
+            for i in range(size_batch_instances):
+                instance_i = Instance(env.next_G[i], env.Phi, env.Lambda, env.next_J[i], 0)
+                instances_episode.append(instance_i)
             # Take an action
             # begin by choosing which neural network is used as a policy network
             # depending on the method of training
@@ -238,12 +241,13 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 neural_net_policy = value_net_bis
             else:
                 neural_net_policy = target_net
-            action, targets, value = sample_action(
+            action, targets, value = sample_action_batch(
                 neural_net_policy,
                 env.player,
                 env.next_player,
                 env.next_rewards,
                 env.next_list_G_torch,
+                env.id_graphs,
                 eps_end,
                 eps_decay,
                 eps_start,
@@ -257,33 +261,36 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 Lambdas_norm=env.next_Lambda_norm,
                 J=env.next_J_tensor,
             )
+            # TODO: reflechir au DQN
             if training_method == 'DQN':
                 # save the the parameters necessary to compute the
                 # approximate values of the next afterstates
-                next_instance_torch = InstanceTorch(
-                    G_torch=env.next_list_G_torch,
-                    n_nodes=env.next_n_nodes_tensor,
-                    Omegas=env.next_Omega_tensor,
-                    Phis=env.next_Phi_tensor,
-                    Lambdas=env.next_Lambda_tensor,
-                    Omegas_norm=env.next_Omega_norm,
-                    Phis_norm=env.next_Phi_norm,
-                    Lambdas_norm=env.next_Lambda_norm,
-                    J=env.next_J_tensor,
-                    target=torch.tensor(value).view([1,1]),
-                )
-                player_episode.append(env.player)
-                next_player_episode.append(env.next_player)
-                next_state_episode.append(next_instance_torch)
-                targets_episode.append(targets)
+                for i in range(size_batch_instances):
+                    next_instance_torch = InstanceTorch(
+                        G_torch=env.next_list_G_torch,
+                        n_nodes=env.next_n_nodes_tensor,
+                        Omegas=env.next_Omega_tensor,
+                        Phis=env.next_Phi_tensor,
+                        Lambdas=env.next_Lambda_tensor,
+                        Omegas_norm=env.next_Omega_norm,
+                        Phis_norm=env.next_Phi_norm,
+                        Lambdas_norm=env.next_Lambda_norm,
+                        J=env.next_J_tensor,
+                        target=torch.tensor(value).view([1,1]),
+                    )
+                    player_episode.append(env.player)
+                    next_player_episode.append(env.next_player)
+                    next_state_episode.append(next_instance_torch)
+                    targets_episode.append(targets)
 
-                count_instances += 1
-                # Update the environment
-                env.step(action)
+            count_instances += batch_instances
+            # Update the environment
+            env.step(action)
 
         # perform an epoch over the replay memory
         # if there is enough new instances in memory
-        if count_instances % n_instance_before_epoch == 0 and count_memory > batch_size:
+        if count_instances % n_instance_before_epoch > count_epochs and count_memory > batch_size:
+            count_epochs += 1
             # create a list of randomly shuffled indices to sample batches from
             memory_size = len(replay_memory)
             n_batch = memory_size // batch_size + 1 * (memory_size % batch_size > 0)
@@ -307,9 +314,6 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     batch_instances.Phis_norm,
                     batch_instances.Lambdas_norm,
                     batch_instances.J,
-                    batch_instances.saved_nodes,
-                    batch_instances.infected_nodes,
-                    batch_instances.size_connected,
                 )
                 if training_method == 'DQN':
                     instances_batch = [memory_next_state[k] for k in id_batch]
@@ -328,11 +332,8 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
-                if exact_protection:
-                    list_experts = [None]*Lambda_max
-                    list_experts += [value_net_bis]*(Omega_max + Phi_max - 1)
-                    losses_test = compute_loss_test(test_set_generators, list_experts=list_experts)
-                else:
+                # Check the test losses every 20 steps
+                if count_steps % 20 == 0:
                     losses_test = compute_loss_test(test_set_generators, value_net=value_net_bis)
                 for k in range(len(losses_test)):
                     name_loss = 'Loss test budget ' + str(k+1)

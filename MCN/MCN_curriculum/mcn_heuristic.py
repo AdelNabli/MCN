@@ -114,6 +114,9 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
                 Phis_norm=env.next_Phi_norm,
                 Lambdas_norm=env.next_Lambda_norm,
                 J=env.next_J_tensor,
+                saved_nodes=env.next_saved_tensor,
+                infected_nodes=env.next_infected_tensor,
+                size_connected=env.next_size_connected_tensor,
             )
             # save the action to the memory of actions
             actions_episode.append(action)
@@ -154,7 +157,7 @@ def solve_mcn_heuristic_batch(list_experts, list_instances, Omega_max, Phi_max, 
             env.next_rewards,
             env.next_list_G_torch,
             env.id_graphs,
-            n_nodes = env.next_n_nodes_tensor,
+            n_nodes=env.next_n_nodes_tensor,
             Omegas=env.next_Omega_tensor,
             Phis=env.next_Phi_tensor,
             Lambdas=env.next_Lambda_tensor,
@@ -162,6 +165,9 @@ def solve_mcn_heuristic_batch(list_experts, list_instances, Omega_max, Phi_max, 
             Phis_norm=env.next_Phi_norm,
             Lambdas_norm=env.next_Lambda_norm,
             J=env.next_J_tensor,
+            saved_nodes=env.next_saved_tensor,
+            infected_nodes=env.next_infected_tensor,
+            size_connected=env.next_size_connected_tensor,
 
         )
         env.step(action)

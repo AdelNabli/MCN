@@ -1,5 +1,5 @@
 import torch
-from MCN.utils import graph_torch, new_graph, get_player, compute_saved_nodes, Instance
+from MCN.utils import graph_torch, new_graph, get_player, compute_saved_nodes, features_connected_comp, Instance
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -98,6 +98,9 @@ class Environment(object):
         self.next_list_G_torch = []
         self.next_list_J = []
         list_next_J_tensor = []
+        list_next_saved_tensor = []
+        list_next_infected_tensor = []
+        list_next_size_connected_tensor = []
         next_rewards = []
 
         for k in range(self.batch_size):
@@ -130,9 +133,14 @@ class Environment(object):
                     # compute the corresponding G_torch graph
                     G_torch_new = graph_torch(G_new)
                     self.next_list_G_torch.append(G_torch_new)
-                    next_J_tensor = torch.zeros(len(G_new), dtype=torch.float).to(device)
-                    next_J_tensor[J_new] = 1.
-                    next_J_tensor = next_J_tensor.view([len(G_new), 1])
+                    # compute the features of the connected components
+                    (
+                        _,
+                        next_J_tensor,
+                        next_saved_tensor,
+                        next_infected_tensor,
+                        next_size_connected_tensor,
+                    ) = features_connected_comp(G_new, J_new)
                     # put the reward to 0
                     next_reward = 0
                 # else, it's the end of the game
@@ -141,8 +149,14 @@ class Environment(object):
                     next_reward = compute_saved_nodes(G_new, J_new)
                     # the other tensors aren't necessary
                     next_J_tensor = torch.tensor([])
+                    next_saved_tensor = torch.tensor([])
+                    next_infected_tensor = torch.tensor([])
+                    next_size_connected_tensor = torch.tensor([])
 
                 list_next_J_tensor.append(next_J_tensor)
+                list_next_saved_tensor.append(next_saved_tensor)
+                list_next_infected_tensor.append(next_infected_tensor)
+                list_next_size_connected_tensor.append(next_size_connected_tensor)
                 next_rewards.append(next_reward)
 
         self.next_rewards = (
@@ -151,3 +165,6 @@ class Environment(object):
             .to(device)
         )
         self.next_J_tensor = torch.cat(list_next_J_tensor)
+        self.next_saved_tensor = torch.cat(list_next_saved_tensor)
+        self.next_infected_tensor = torch.cat(list_next_infected_tensor)
+        self.next_size_connected_tensor = torch.cat(list_next_size_connected_tensor)
