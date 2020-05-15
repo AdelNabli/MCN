@@ -132,7 +132,7 @@ def load_create_datasets(size_train_data, size_val_data, batch_size, num_workers
         if batch_unroll is None:
             min_size_instance = n_free_min + Budget
             max_size_instance = n_free_max + Budget
-            mean_size_instance = (max_size_instance - min_size_instance) // 2
+            mean_size_instance = min_size_instance + (max_size_instance - min_size_instance) // 2
             batch_instances = batch_size // mean_size_instance
         else:
             batch_instances = batch_unroll

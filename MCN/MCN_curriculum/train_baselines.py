@@ -66,7 +66,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     if batch_unroll is None:
         min_size_instance = n_free_min + 1
         max_size_instance = n_free_max + max_budget
-        mean_size_instance = (max_size_instance - min_size_instance) // 2
+        mean_size_instance = min_size_instance + (max_size_instance - min_size_instance) // 2
         size_batch_instances = batch_size // mean_size_instance
     else:
         size_batch_instances = batch_unroll
