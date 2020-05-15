@@ -90,9 +90,9 @@ class Environment(object):
 
         """Compute all the possible afterstates given the current player and the current states"""
 
-        free_nodes = [[x for x in list(self.next_G[k].nodes) if x not in self.next_J[k]] for k in range(self.batch_size)]
+        self.free_nodes = [[x for x in list(self.next_G[k].nodes) if x not in self.next_J[k]] for k in range(self.batch_size)]
         self.id_graphs = torch.tensor(
-            [k for k in range(self.batch_size) for i in range(len(free_nodes[k]))], dtype=torch.int64).to(device)
+            [k for k in range(self.batch_size) for i in range(len(self.free_nodes[k]))], dtype=torch.int64).to(device)
         # init variables
         self.next_list_G_nx = []
         self.next_list_G_torch = []
@@ -105,7 +105,7 @@ class Environment(object):
 
         for k in range(self.batch_size):
 
-            for node in free_nodes[k]:
+            for node in self.free_nodes[k]:
 
                 G = self.next_G[k].copy()
                 J = list(self.next_J[k].copy())

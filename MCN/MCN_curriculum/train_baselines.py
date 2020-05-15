@@ -260,28 +260,36 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 Phis_norm=env.next_Phi_norm,
                 Lambdas_norm=env.next_Lambda_norm,
                 J=env.next_J_tensor,
+                saved_nodes=env.next_saved_tensor,
+                infected_nodes=env.next_infected_tensor,
+                size_connected=env.next_size_connected_tensor,
             )
-            # TODO: reflechir au DQN
             if training_method == 'DQN':
                 # save the the parameters necessary to compute the
                 # approximate values of the next afterstates
+                id_free = 0
                 for i in range(size_batch_instances):
+                    id_free_next = id_free + len(env.free_nodes[i])
                     next_instance_torch = InstanceTorch(
-                        G_torch=env.next_list_G_torch,
-                        n_nodes=env.next_n_nodes_tensor,
-                        Omegas=env.next_Omega_tensor,
-                        Phis=env.next_Phi_tensor,
-                        Lambdas=env.next_Lambda_tensor,
-                        Omegas_norm=env.next_Omega_norm,
-                        Phis_norm=env.next_Phi_norm,
-                        Lambdas_norm=env.next_Lambda_norm,
-                        J=env.next_J_tensor,
-                        target=torch.tensor(value).view([1,1]),
+                        G_torch=env.next_list_G_torch[id_free:id_free_next],
+                        n_nodes=env.next_n_nodes_tensor[id_free:id_free_next],
+                        Omegas=env.next_Omega_tensor[id_free:id_free_next],
+                        Phis=env.next_Phi_tensor[id_free:id_free_next],
+                        Lambdas=env.next_Lambda_tensor[id_free:id_free_next],
+                        Omegas_norm=env.next_Omega_norm[id_free:id_free_next],
+                        Phis_norm=env.next_Phi_norm[id_free:id_free_next],
+                        Lambdas_norm=env.next_Lambda_norm[id_free:id_free_next],
+                        J=env.next_J_tensor[id_free:id_free_next],
+                        saved_nodes=env.next_saved_tensor[id_free:id_free_next],
+                        infected_nodes=env.next_infected_tensor[id_free:id_free_next],
+                        size_connected=env.next_size_connected_tensor[id_free:id_free_next],
+                        target=torch.tensor(value[i]).view([1,1]),
                     )
                     player_episode.append(env.player)
                     next_player_episode.append(env.next_player)
                     next_state_episode.append(next_instance_torch)
                     targets_episode.append(targets)
+                    id_free = id_free_next
 
             count_instances += batch_instances
             # Update the environment
@@ -314,6 +322,9 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     batch_instances.Phis_norm,
                     batch_instances.Lambdas_norm,
                     batch_instances.J,
+                    batch_instances.saved_nodes,
+                    batch_instances.infected_nodes,
+                    batch_instances.size_connected,
                 )
                 if training_method == 'DQN':
                     instances_batch = [memory_next_state[k] for k in id_batch]
