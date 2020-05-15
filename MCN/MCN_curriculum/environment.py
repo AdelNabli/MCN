@@ -143,8 +143,8 @@ class Environment(object):
                     G_torch_new = graph_torch(G_new)
                     self.next_list_G_torch.append(G_torch_new)
                     # compute the J_tensor
-                    J_tensor = torch.zeros(len(G_new), dtype=torch.float).view([len(G_new), 1]).to(device)
-                    J[J_new] = 1.
+                    next_J_tensor = torch.zeros(len(G_new), dtype=torch.float).view([len(G_new), 1]).to(device)
+                    next_J_tensor[J_new] = 1.
                     # put the reward to 0
                     next_reward = 0
                 # else, it's the end of the game
