@@ -110,6 +110,9 @@ class Environment(object):
         self.next_list_J = []
         self.next_list_instance_torch = []
         list_next_J_tensor = []
+        list_next_saved_tensor = []
+        list_next_infected_tensor = []
+        list_next_size_connected_tensor = []
         next_rewards = []
 
         for k in range(self.batch_size):
@@ -142,9 +145,14 @@ class Environment(object):
                     # compute the corresponding G_torch graph
                     G_torch_new = graph_torch(G_new)
                     self.next_list_G_torch.append(G_torch_new)
-                    # compute the J_tensor
-                    next_J_tensor = torch.zeros(len(G_new), dtype=torch.float).view([len(G_new), 1]).to(device)
-                    next_J_tensor[J_new] = 1.
+                    # compute the features of the connected components
+                    (
+                        _,
+                        next_J_tensor,
+                        next_saved_tensor,
+                        next_infected_tensor,
+                        next_size_connected_tensor,
+                    ) = features_connected_comp(G_new, J_new)
                     # put the reward to 0
                     next_reward = 0
                 # else, it's the end of the game
@@ -153,9 +161,15 @@ class Environment(object):
                     next_reward = compute_saved_nodes(G_new, J_new)
                     # the other tensors aren't necessary
                     next_J_tensor = torch.tensor([])
+                    next_saved_tensor = torch.tensor([])
+                    next_infected_tensor = torch.tensor([])
+                    next_size_connected_tensor = torch.tensor([])
                     G_torch_new = []
 
                 list_next_J_tensor.append(next_J_tensor)
+                list_next_saved_tensor.append(next_saved_tensor)
+                list_next_infected_tensor.append(next_infected_tensor)
+                list_next_size_connected_tensor.append(next_size_connected_tensor)
                 next_rewards.append(next_reward)
                 instance_torch = InstanceTorch(
                     G_torch_new,
@@ -176,3 +190,6 @@ class Environment(object):
             .to(device)
         )
         self.next_J_tensor = torch.cat(list_next_J_tensor)
+        self.next_saved_tensor = torch.cat(list_next_saved_tensor)
+        self.next_infected_tensor = torch.cat(list_next_infected_tensor)
+        self.next_size_connected_tensor = torch.cat(list_next_size_connected_tensor)

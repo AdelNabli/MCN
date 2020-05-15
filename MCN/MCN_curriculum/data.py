@@ -34,7 +34,7 @@ def collate_fn(list_instances):
     """Given a list of instances, gather them all into a single instance"""
 
     # Initialize the collated instance
-    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     # Create a batch data object from Pytorch Geometric
     instances_collated.G_torch = Batch.from_data_list(
         [instances.G_torch for instances in list_instances]
@@ -48,6 +48,9 @@ def collate_fn(list_instances):
     instances_collated.Phis_norm = torch.cat([instances.Phis_norm for instances in list_instances])
     instances_collated.Lambdas_norm = torch.cat([instances.Lambdas_norm for instances in list_instances])
     instances_collated.J = torch.cat([instances.J for instances in list_instances])
+    instances_collated.saved_nodes = torch.cat([instances.saved_nodes for instances in list_instances])
+    instances_collated.infected_nodes = torch.cat([instances.infected_nodes for instances in list_instances])
+    instances_collated.size_connected = torch.cat([instances.size_connected for instances in list_instances])
     instances_collated.target = torch.cat([instances.target for instances in list_instances])
 
     return instances_collated

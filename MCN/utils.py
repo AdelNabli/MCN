@@ -424,7 +424,8 @@ class InstanceTorch:
     """Creates an instance object to store all the tensors necessary to compute
     the approximate values with the ValueNet"""
 
-    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J, target=None):
+    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J,
+                 saved_nodes, infected_nodes, size_connected, target=None):
 
         self.G_torch = G_torch
         self.n_nodes = n_nodes
@@ -435,6 +436,9 @@ class InstanceTorch:
         self.Phis_norm = Phis_norm
         self.Lambdas_norm = Lambdas_norm
         self.J = J
+        self.saved_nodes = saved_nodes
+        self.infected_nodes = infected_nodes
+        self.size_connected = size_connected
         self.target = target
 
 
@@ -445,10 +449,14 @@ def instance_to_torch(instance):
     # Transform the graph
     G_torch = graph_torch(instance.G)
     n = len(instance.G)
-    # Compute J
-    J= np.zeros(n)
-    J[instance.J] = 1
-    J = torch.tensor(J, dtype=torch.float).view([n, 1]).to(device)
+    # Compute the features from the connected components
+    (
+        _,
+        J,
+        saved_nodes,
+        infected_nodes,
+        size_connected,
+    ) = features_connected_comp(instance.G, instance.J)
     # Put the number of nodes into a tensor
     n_nodes = torch.tensor([n], dtype=torch.float).view([1, 1]).to(device)
     # Put the budgets into tensors
@@ -473,6 +481,9 @@ def instance_to_torch(instance):
         Phi_norm,
         Lambda_norm,
         J,
+        saved_nodes,
+        infected_nodes,
+        size_connected,
         target,
     )
 
@@ -576,6 +587,86 @@ def compute_saved_nodes(G, I):
     value = np.sum(weights[list(set(G.nodes()) - connected_infected)])
 
     return value
+
+
+def features_connected_comp(G, I):
+    """Compute the features of a given instance (G,I) related to
+    the connected components of G
+
+    Parameters:
+    ----------
+    G: networkx graph
+    I: list of ints,
+       list of the ids of the attacked nodes of G
+
+    Returns:
+    -------
+    value: int,
+           the value of the saved nodes
+    J_tensor: float tensor,
+              indicator 1_{node \in I}
+    indic_saved: float tensor,
+                 indicator 1_{node saved}
+    indic_infected: float tensor,
+                    indicator 1_{node infected}
+    size_connected_tensor: float tensor,
+                           the size of the connected component
+                           each node belongs to
+                           (divided by the size of G)"""
+
+    n = len(G)
+    # Initialize the variables
+    value = 0
+    connected_infected = set()
+    size_connected = [1] * n
+    is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
+    is_directed = False in [(v, u) in G.edges() for (u, v) in G.edges()]
+    # Gather the weights
+    if is_weighted:
+        weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
+        sum_weights = np.sum(weights)
+    else:
+        weights = np.ones(n)
+        sum_weights = n
+    # Compute the features in the directed case
+    if is_directed:
+        for node in G.nodes():
+            connected = set(u for u in nx.dfs_preorder_nodes(G, node))
+            size_connected[node] = np.sum(weights[list(connected)]) / sum_weights
+            if node in I:
+                connected_infected = connected_infected.union(connected)
+        value = np.sum(weights[list(set(G.nodes()) - connected_infected)])
+    else:
+        # insure G is undirected
+        G1 = G.to_undirected()
+        for c in nx.connected_components(G1):
+            size_c = np.sum(weights[list(c)])
+            # update the vector of size of the connected comp
+            for node in c:
+                # we normalize the size by the total size of the graph
+                size_connected[node] = size_c / sum_weights
+            # a connected component is saved if
+            # there is not any attacked node inside it
+            if set(I).intersection(c) == set():
+                value += size_c
+            else:
+                connected_infected = connected_infected.union(c)
+
+    # transform the variables to tensor
+    # init the tensors
+    J_tensor = np.zeros(n)
+    indic_saved = np.ones(n)
+    indic_infected = np.zeros(n)
+    # compute the one hot encoding
+    J_tensor[I] = 1
+    indic_infected[list(connected_infected)] = 1
+    indic_saved -= indic_infected
+    J_tensor = torch.tensor(J_tensor, dtype=torch.float).view([n, 1]).to(device)
+    indic_saved = torch.tensor(indic_saved, dtype=torch.float).view([n, 1]).to(device)
+    indic_infected = torch.tensor(indic_infected, dtype=torch.float).view([n, 1]).to(device)
+    size_connected_tensor = torch.tensor(size_connected, dtype=torch.float).view([n, 1]).to(device)
+
+    return (value, J_tensor, indic_saved, indic_infected, size_connected_tensor)
 
 
 def get_player(Omega, Phi, Lambda):
@@ -939,6 +1030,9 @@ def compute_loss_test(test_set_generators, value_net=None, list_experts=None, id
                         batch_instances.Phis_norm,
                         batch_instances.Lambdas_norm,
                         batch_instances.J,
+                        batch_instances.saved_nodes,
+                        batch_instances.infected_nodes,
+                        batch_instances.size_connected,
                     )
                     val_approx.append(values_approx)
                     target.append(batch_instances.target)
