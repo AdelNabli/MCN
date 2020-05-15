@@ -165,6 +165,7 @@ class Environment(object):
                     next_saved_tensor = torch.tensor([])
                     next_infected_tensor = torch.tensor([])
                     next_size_connected_tensor = torch.tensor([])
+                    G_torch_new = []
 
                 list_next_J_tensor.append(next_J_tensor)
                 list_next_saved_tensor.append(next_saved_tensor)
