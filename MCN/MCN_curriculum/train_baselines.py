@@ -365,7 +365,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 if count_steps % rate_display == 0:
                     save_models(date_str, dict_args, value_net, optimizer, count_steps)
                     print(
-                        " \n Episode: %2d/%2d" % (episode, n_episode),
+                        " \n Episode: %2d/%2d" % (episode*size_batch_instances, n_episode),
                         " \n Loss of the current value net: %f" % float(loss),
                         " \n Losses on test set : ", losses_test,
                     )

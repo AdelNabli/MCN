@@ -838,13 +838,15 @@ def sample_action_batch(neural_net, player, next_player, rewards, next_afterstat
         targets = rewards
         actions = []
         values = []
-        sum_n = 0
-        n_batches = id_graphs[-1] + 1
+        n_batches = int(id_graphs[-1]) + 1
+        all_actions = torch.arange(len(id_graphs))
         for i in range(n_batches):
-            n_free = int(torch.sum(id_graphs.eq(i)))
-            actions.append(np.random.randint(0, n_free) + sum_n)
-            sum_n += n_free
-            values.append(float(targets[actions[-1]]))
+            mask_i = id_graphs.eq(i)
+            actions_possible = all_actions[mask_i]
+            random_id = int(np.random.randint(0, len(actions_possible)))
+            random_action = int(actions_possible[random_id])
+            actions.append(random_action)
+            values.append(float(targets[random_action]))
 
         return actions, targets, values
 
