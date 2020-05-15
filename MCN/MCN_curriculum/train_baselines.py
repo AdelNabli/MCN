@@ -230,7 +230,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
             env.compute_current_situation()
             # save the current instances
             for i in range(size_batch_instances):
-                instance_i = Instance(env.next_G[i], env.Phi, env.Lambda, env.next_J[i], 0)
+                instance_i = Instance(env.next_G[i], env.Omega, env.Phi, env.Lambda, env.next_J[i], 0)
                 instances_episode.append(instance_i)
             # Take an action
             # begin by choosing which neural network is used as a policy network
