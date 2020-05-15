@@ -182,6 +182,9 @@ class Environment(object):
                     torch.tensor(self.Phi / len(G_new), dtype=torch.float).view([1, 1]).to(device),
                     torch.tensor(self.Lambda / len(G_new), dtype=torch.float).view([1, 1]).to(device),
                     next_J_tensor,
+                    next_saved_tensor,
+                    next_infected_tensor,
+                    next_size_connected_tensor,
                 )
                 self.next_list_instance_torch.append(instance_torch)
 
