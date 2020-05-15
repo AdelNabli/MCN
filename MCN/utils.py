@@ -447,7 +447,7 @@ def instance_to_torch(instance):
     n = len(instance.G)
     # Compute J
     J= np.zeros(n)
-    J[instance.I] = 1
+    J[instance.J] = 1
     J = torch.tensor(J, dtype=torch.float).view([n, 1]).to(device)
     # Put the number of nodes into a tensor
     n_nodes = torch.tensor([n], dtype=torch.float).view([1, 1]).to(device)
