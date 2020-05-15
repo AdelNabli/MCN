@@ -1,5 +1,14 @@
 import torch
-from MCN.utils import graph_torch, new_graph, get_player, compute_saved_nodes, features_connected_comp, Instance
+from MCN.utils import (
+    graph_torch,
+    new_graph,
+    get_player,
+    compute_saved_nodes,
+    features_connected_comp,
+    Instance,
+    InstanceTorch,
+)
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -23,6 +32,7 @@ class Environment(object):
         self.Budget = self.Omega + self.Phi + self.Lambda
         self.n_free = [len(instance.G) + 1 - len(instance.J) for instance in list_instances]
         self.list_G_nx = [instance.G for instance in list_instances]
+        self.list_instance_torch = [None] * self.batch_size
         self.list_J = [instance.J for instance in list_instances]
         self.actions = list(range(self.batch_size))
         self.player = get_player(self.Omega, self.Phi, self.Lambda)
@@ -32,6 +42,7 @@ class Environment(object):
 
         self.next_G = [self.list_G_nx[action] for action in self.actions]
         self.next_J = [self.list_J[action] for action in self.actions]
+        self.next_instance_torch = [self.list_instance_torch[action] for action in self.actions]
         self.next_n_free = [n_free - 1 for n_free in self.n_free]
         self.next_Budget = self.Budget - 1
         self.update_budgets()
@@ -50,6 +61,7 @@ class Environment(object):
         self.n_free = self.next_n_free
         self.list_G_nx = self.next_list_G_nx
         self.list_J = self.next_list_J
+        self.list_instance_torch = self.next_list_instance_torch
         self.player = self.next_player
 
     def compute_next_state_tensors(self):
@@ -97,10 +109,11 @@ class Environment(object):
         self.next_list_G_nx = []
         self.next_list_G_torch = []
         self.next_list_J = []
-        self.list_next_J_tensor = []
-        self.list_next_saved_tensor = []
-        self.list_next_infected_tensor = []
-        self.list_next_size_connected_tensor = []
+        self.next_list_instance_torch = []
+        list_next_J_tensor = []
+        list_next_saved_tensor = []
+        list_next_infected_tensor = []
+        list_next_size_connected_tensor = []
         next_rewards = []
 
         for k in range(self.batch_size):
@@ -153,18 +166,34 @@ class Environment(object):
                     next_infected_tensor = torch.tensor([])
                     next_size_connected_tensor = torch.tensor([])
 
-                self.list_next_J_tensor.append(next_J_tensor)
-                self.list_next_saved_tensor.append(next_saved_tensor)
-                self.list_next_infected_tensor.append(next_infected_tensor)
-                self.list_next_size_connected_tensor.append(next_size_connected_tensor)
+                list_next_J_tensor.append(next_J_tensor)
+                list_next_saved_tensor.append(next_saved_tensor)
+                list_next_infected_tensor.append(next_infected_tensor)
+                list_next_size_connected_tensor.append(next_size_connected_tensor)
                 next_rewards.append(next_reward)
+                instance_torch = InstanceTorch(
+                    G_torch_new,
+                    torch.tensor(len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Omega, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Phi, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Lambda, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Omega / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Phi / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.Lambda / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    next_J_tensor,
+                    next_saved_tensor,
+                    next_infected_tensor,
+                    next_size_connected_tensor,
+                    torch.tensor(next_reward, dtype=torch.float).view([1, 1]).to(device),
+                )
+                self.next_list_instance_torch.append(instance_torch)
 
         self.next_rewards = (
             torch.tensor(next_rewards, dtype=torch.float)
             .view([len(next_rewards), 1])
             .to(device)
         )
-        self.next_J_tensor = torch.cat(self.list_next_J_tensor)
-        self.next_saved_tensor = torch.cat(self.list_next_saved_tensor)
-        self.next_infected_tensor = torch.cat(self.list_next_infected_tensor)
-        self.next_size_connected_tensor = torch.cat(self.list_next_size_connected_tensor)
+        self.next_J_tensor = torch.cat(list_next_J_tensor)
+        self.next_saved_tensor = torch.cat(list_next_saved_tensor)
+        self.next_infected_tensor = torch.cat(list_next_infected_tensor)
+        self.next_size_connected_tensor = torch.cat(list_next_size_connected_tensor)

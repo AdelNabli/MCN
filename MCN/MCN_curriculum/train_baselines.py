@@ -20,72 +20,8 @@ from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
 from MCN.MCN_curriculum.environment import Environment
 from MCN.MCN_curriculum.value_nn import ValueNet
 from MCN.test_performances.optimality_gap import compute_optimality_gap
-from torch_scatter import scatter_max, scatter_min
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def compute_targets_dqn(target_net, instances_batch, targets, players, next_players):
-
-    """In DQN, the targets used in the loss are the approximate values of the next state
-    given by the neural network"""
-
-    n = len(instances_batch)
-    # Initialize the masks:
-    # we have to compute the approximate values of each possible afterstate,
-    # but the target is either the min or the max of all these possibilities depending
-    # on whose player it is the turn to play. So we compute all the approximate values
-    # first and then gather the min or the max depending on the player.
-    players_torch = torch.tensor(players)
-    next_players_torch = torch.tensor(next_players)
-    mask_approx = next_players_torch.le(2)
-    mask_exact = next_players_torch.eq(3)
-    players_approx = players_torch[mask_approx]
-    mask_approx_min = players_approx.eq(1)
-    mask_approx_max = torch.logical_not(mask_approx_min)
-    players_exact = players_torch[mask_exact]
-    mask_exact_min = players_exact.eq(1)
-    mask_exact_max = torch.logical_not(mask_exact_min)
-    # Initializes the variables
-    instances_torch = [instances_batch[k] for k in range(n) if mask_approx[k]]
-    id_graph_approx = torch.tensor(
-        [i for i in range(len(instances_torch)) for k in range(len(instances_torch[i].G_torch))]
-    ).to(device)
-    batch_instances = collate_fn(instances_torch, for_dqn=True)
-    # Compute the approximate values
-    values_approx = target_net(
-        batch_instances.G_torch,
-        batch_instances.n_nodes,
-        batch_instances.Omegas,
-        batch_instances.Phis,
-        batch_instances.Lambdas,
-        batch_instances.Omegas_norm,
-        batch_instances.Phis_norm,
-        batch_instances.Lambdas_norm,
-        batch_instances.J,
-        batch_instances.saved_nodes,
-        batch_instances.infected_nodes,
-        batch_instances.size_connected,
-    )[:, 0]
-    targets_approx_min = scatter_min(values_approx, id_graph_approx)[0]
-    targets_approx_max = scatter_max(values_approx, id_graph_approx)[0]
-    # Gather the exact values when the next player is 3
-    values_exact = [targets[k] for k in range(n) if mask_exact[k]]
-    id_graph_exact = torch.tensor(
-        [i for i in range(len(values_exact)) for k in range(values_exact[i].size()[0])]
-    ).to(device)
-    values_exact = torch.cat(values_exact)[:, 0]
-    targets_exact_min = scatter_min(values_exact, id_graph_exact)[0]
-    targets_exact_max = scatter_max(values_exact, id_graph_exact)[0]
-    # Collate the different targets corresponding to each possible case
-    # into a single target tensor
-    targets = torch.tensor([0]*n, dtype=torch.float).to(device)
-    targets[mask_exact][mask_exact_min] = targets_exact_min[mask_exact_min]
-    targets[mask_exact][mask_exact_max] = targets_exact_max[mask_exact_max]
-    targets[mask_approx][mask_approx_min] = targets_approx_min[mask_approx_min]
-    targets[mask_approx][mask_approx_max] = targets_approx_max[mask_approx_max]
-
-    return targets
 
 
 def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
@@ -96,7 +32,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                              num_workers=0, resume_training=False, path_train="", path_test_data=None,
                              training_method='MC', exact_protection=False, rate_display=200):
 
-    """Train a neural network to solve the MCN problem either using Monte Carlo samples or with Q-learning"""
+    """Train a neural network to solve the MCN problem either using Monte Carlo samples or with TD"""
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -150,11 +86,6 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
     # Initialize the memory
     replay_memory = []
     count_memory = 0
-    if training_method == 'DQN':
-        memory_player = []
-        memory_next_player = []
-        memory_next_state = []
-        memory_targets = []
     # If resume training
     if resume_training:
         # load the state dicts of the optimizer and value_net
@@ -219,30 +150,20 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         env = Environment(list_instances)
         # Init the list of instances for the episode
         instances_episode = []
-        if training_method == 'DQN':
-            player_episode = []
-            next_player_episode = []
-            next_state_episode = []
-            targets_episode = []
         # Unroll the episode
         while env.Budget >= 1:
             # update the environment
             env.compute_current_situation()
             # save the current instances
             for i in range(size_batch_instances):
-                instance_i = Instance(env.next_G[i], env.Omega, env.Phi, env.Lambda, env.next_J[i], 0)
+                instance_i = env.next_instance_torch[i]
+                if instance_i is None:
+                    instance_i = Instance(env.next_G[i], env.Omega, env.Phi, env.Lambda, env.next_J[i], 0)
+                    instance_i = instance_to_torch(instance_i)
                 instances_episode.append(instance_i)
             # Take an action
-            # begin by choosing which neural network is used as a policy network
-            # depending on the method of training
-            if training_method == 'DQN':
-                value_net_bis.load_state_dict(value_net.state_dict())
-                value_net_bis.eval()
-                neural_net_policy = value_net_bis
-            else:
-                neural_net_policy = target_net
             action, targets, value = sample_action_batch(
-                neural_net_policy,
+                target_net,
                 env.player,
                 env.next_player,
                 env.next_rewards,
@@ -264,33 +185,6 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                 infected_nodes=env.next_infected_tensor,
                 size_connected=env.next_size_connected_tensor,
             )
-            if training_method == 'DQN':
-                # save the the parameters necessary to compute the
-                # approximate values of the next afterstates
-                id_free = 0
-                for i in range(size_batch_instances):
-                    id_free_next = id_free + len(env.free_nodes[i])
-                    next_instance_torch = InstanceTorch(
-                        G_torch=env.next_list_G_torch[id_free:id_free_next],
-                        n_nodes=env.next_n_nodes_tensor[id_free:id_free_next],
-                        Omegas=env.next_Omega_tensor[id_free:id_free_next],
-                        Phis=env.next_Phi_tensor[id_free:id_free_next],
-                        Lambdas=env.next_Lambda_tensor[id_free:id_free_next],
-                        Omegas_norm=env.next_Omega_norm[id_free:id_free_next],
-                        Phis_norm=env.next_Phi_norm[id_free:id_free_next],
-                        Lambdas_norm=env.next_Lambda_norm[id_free:id_free_next],
-                        J=torch.cat(env.list_next_J_tensor[id_free:id_free_next]),
-                        saved_nodes=torch.cat(env.list_next_saved_tensor[id_free:id_free_next]),
-                        infected_nodes=torch.cat(env.list_next_infected_tensor[id_free:id_free_next]),
-                        size_connected=torch.cat(env.list_next_size_connected_tensor[id_free:id_free_next]),
-                        target=torch.tensor(value[i]).view([1,1]),
-                    )
-                    player_episode.append(env.player)
-                    next_player_episode.append(env.next_player)
-                    next_state_episode.append(next_instance_torch)
-                    targets_episode.append(targets)
-                    id_free = id_free_next
-
             count_instances += size_batch_instances
             # Update the environment
             env.step(action)
@@ -326,16 +220,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     batch_instances.infected_nodes,
                     batch_instances.size_connected,
                 )
-                if training_method == 'DQN':
-                    instances_batch = [memory_next_state[k] for k in id_batch]
-                    targets_batch = [memory_targets[k] for k in id_batch]
-                    players = [memory_player[k] for k in id_batch]
-                    next_players = [memory_next_player[k] for k in id_batch]
-                    # compute the target for the batch
-                    batch_target = compute_targets_dqn(target_net, instances_batch, targets_batch,
-                                                       players, next_players)
-                else:
-                    batch_target = batch_instances.target[:, 0]
+                batch_target = batch_instances.target[:, 0]
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
@@ -373,21 +258,11 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         # add the instances from the episode to memory
         for k in range(len(instances_episode)):
             instance = instances_episode[k]
-            instance.value = value[k % size_batch_instances]
+            instance.target = torch.tensor([value[k % size_batch_instances]], dtype=torch.float).view([1, 1]).to(device)
             instance_torch = instance_to_torch(instance)
             if len(replay_memory) < size_memory:
                 replay_memory.append(None)
-                if training_method == 'DQN':
-                    memory_player.append(None)
-                    memory_next_player.append(None)
-                    memory_next_state.append(None)
-                    memory_targets.append(None)
             replay_memory[count_memory % size_memory] = instance_torch
-            if training_method == 'DQN':
-                memory_player[count_memory % size_memory] = player_episode[k]
-                memory_next_player[count_memory % size_memory] = next_player_episode[k]
-                memory_next_state[count_memory % size_memory] = next_state_episode[k]
-                memory_targets[count_memory % size_memory] = targets_episode[k]
             count_memory += 1
 
     # Compute how the neural networks we trained perform on the test set

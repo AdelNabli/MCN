@@ -29,25 +29,16 @@ class MCNDataset(Dataset):
         return self.data[idx]
 
 
-def collate_fn(list_instances, for_dqn=False):
+def collate_fn(list_instances):
 
     """Given a list of instances, gather them all into a single instance"""
 
     # Initialize the collated instance
     instances_collated = InstanceTorch(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
     # Create a batch data object from Pytorch Geometric
-    if for_dqn:
-        # if we are to use the function with the dqn baseline,
-        # the instances in list_instances have a list of graphs for the G_torch
-        # argument and thus we need to create a batch from the list of lists
-        instances_collated.G_torch = Batch.from_data_list(
-            [G_torch for instances in list_instances for G_torch in instances.G_torch]
-        ).to(device)
-    else:
-        # else, each instance contains only one graph
-        instances_collated.G_torch = Batch.from_data_list(
-            [instances.G_torch for instances in list_instances]
-        ).to(device)
+    instances_collated.G_torch = Batch.from_data_list(
+        [instances.G_torch for instances in list_instances]
+    ).to(device)
     # Concatenate all the other parameters
     instances_collated.n_nodes = torch.cat([instances.n_nodes for instances in list_instances])
     instances_collated.Omegas = torch.cat([instances.Omegas for instances in list_instances])
