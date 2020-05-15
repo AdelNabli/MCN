@@ -97,10 +97,10 @@ class Environment(object):
         self.next_list_G_nx = []
         self.next_list_G_torch = []
         self.next_list_J = []
-        list_next_J_tensor = []
-        list_next_saved_tensor = []
-        list_next_infected_tensor = []
-        list_next_size_connected_tensor = []
+        self.list_next_J_tensor = []
+        self.list_next_saved_tensor = []
+        self.list_next_infected_tensor = []
+        self.list_next_size_connected_tensor = []
         next_rewards = []
 
         for k in range(self.batch_size):
@@ -153,10 +153,10 @@ class Environment(object):
                     next_infected_tensor = torch.tensor([])
                     next_size_connected_tensor = torch.tensor([])
 
-                list_next_J_tensor.append(next_J_tensor)
-                list_next_saved_tensor.append(next_saved_tensor)
-                list_next_infected_tensor.append(next_infected_tensor)
-                list_next_size_connected_tensor.append(next_size_connected_tensor)
+                self.list_next_J_tensor.append(next_J_tensor)
+                self.list_next_saved_tensor.append(next_saved_tensor)
+                self.list_next_infected_tensor.append(next_infected_tensor)
+                self.list_next_size_connected_tensor.append(next_size_connected_tensor)
                 next_rewards.append(next_reward)
 
         self.next_rewards = (
@@ -164,7 +164,7 @@ class Environment(object):
             .view([len(next_rewards), 1])
             .to(device)
         )
-        self.next_J_tensor = torch.cat(list_next_J_tensor)
-        self.next_saved_tensor = torch.cat(list_next_saved_tensor)
-        self.next_infected_tensor = torch.cat(list_next_infected_tensor)
-        self.next_size_connected_tensor = torch.cat(list_next_size_connected_tensor)
+        self.next_J_tensor = torch.cat(self.list_next_J_tensor)
+        self.next_saved_tensor = torch.cat(self.list_next_saved_tensor)
+        self.next_infected_tensor = torch.cat(self.list_next_infected_tensor)
+        self.next_size_connected_tensor = torch.cat(self.list_next_size_connected_tensor)

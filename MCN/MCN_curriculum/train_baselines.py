@@ -279,10 +279,10 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                         Omegas_norm=env.next_Omega_norm[id_free:id_free_next],
                         Phis_norm=env.next_Phi_norm[id_free:id_free_next],
                         Lambdas_norm=env.next_Lambda_norm[id_free:id_free_next],
-                        J=env.next_J_tensor[id_free:id_free_next],
-                        saved_nodes=env.next_saved_tensor[id_free:id_free_next],
-                        infected_nodes=env.next_infected_tensor[id_free:id_free_next],
-                        size_connected=env.next_size_connected_tensor[id_free:id_free_next],
+                        J=torch.cat(env.list_next_J_tensor[id_free:id_free_next]),
+                        saved_nodes=torch.cat(env.list_next_saved_tensor[id_free:id_free_next]),
+                        infected_nodes=torch.cat(env.list_next_infected_tensor[id_free:id_free_next]),
+                        size_connected=torch.cat(env.list_next_size_connected_tensor[id_free:id_free_next]),
                         target=torch.tensor(value[i]).view([1,1]),
                     )
                     player_episode.append(env.player)
