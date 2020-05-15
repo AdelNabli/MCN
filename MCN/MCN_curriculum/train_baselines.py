@@ -291,7 +291,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     targets_episode.append(targets)
                     id_free = id_free_next
 
-            count_instances += batch_instances
+            count_instances += size_batch_instances
             # Update the environment
             env.step(action)
 
@@ -371,24 +371,26 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
                     )
 
         # add the instances from the episode to memory
-        for k in range(len(instances_episode)):
-            instance = instances_episode[k]
-            instance.value = value
-            instance_torch = instance_to_torch(instance)
-            if len(replay_memory) < size_memory:
-                replay_memory.append(None)
+        for j in range(len(instances_episode)):
+            for i in range(size_batch_instances):
+                k = (j+1)*i
+                instance = instances_episode[k]
+                instance.value = value[i]
+                instance_torch = instance_to_torch(instance)
+                if len(replay_memory) < size_memory:
+                    replay_memory.append(None)
+                    if training_method == 'DQN':
+                        memory_player.append(None)
+                        memory_next_player.append(None)
+                        memory_next_state.append(None)
+                        memory_targets.append(None)
+                replay_memory[count_memory % size_memory] = instance_torch
                 if training_method == 'DQN':
-                    memory_player.append(None)
-                    memory_next_player.append(None)
-                    memory_next_state.append(None)
-                    memory_targets.append(None)
-            replay_memory[count_memory % size_memory] = instance_torch
-            if training_method == 'DQN':
-                memory_player[count_memory % size_memory] = player_episode[k]
-                memory_next_player[count_memory % size_memory] = next_player_episode[k]
-                memory_next_state[count_memory % size_memory] = next_state_episode[k]
-                memory_targets[count_memory % size_memory] = targets_episode[k]
-            count_memory += 1
+                    memory_player[count_memory % size_memory] = player_episode[k]
+                    memory_next_player[count_memory % size_memory] = next_player_episode[k]
+                    memory_next_state[count_memory % size_memory] = next_state_episode[k]
+                    memory_targets[count_memory % size_memory] = targets_episode[k]
+                count_memory += 1
 
     # Compute how the neural networks we trained perform on the test set
     if size_test_data > 0:
