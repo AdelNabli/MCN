@@ -160,12 +160,12 @@ class Environment(object):
                 instance_torch = InstanceTorch(
                     G_torch_new,
                     torch.tensor(len(G_new), dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Omega, dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Phi, dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Lambda, dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Omega / len(G_new), dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Phi / len(G_new), dtype=torch.float).view([1, 1]).to(device),
-                    torch.tensor(self.Lambda / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Omega, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Phi, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Lambda, dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Omega / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Phi / len(G_new), dtype=torch.float).view([1, 1]).to(device),
+                    torch.tensor(self.next_Lambda / len(G_new), dtype=torch.float).view([1, 1]).to(device),
                     next_J_tensor,
                 )
                 self.next_list_instance_torch.append(instance_torch)
