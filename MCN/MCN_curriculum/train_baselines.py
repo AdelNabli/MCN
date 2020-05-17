@@ -193,7 +193,7 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
         # perform an epoch over the replay memory
         # if there is enough new instances in memory
         if count_instances // n_instance_before_epoch > count_epochs and count_memory > size_memory:
-            count_epochs += 1
+            count_epochs = count_instances // n_instance_before_epoch
             # create a list of randomly shuffled indices to sample batches from
             memory_size = len(replay_memory)
             n_batch = memory_size // batch_size + 1 * (memory_size % batch_size > 0)
