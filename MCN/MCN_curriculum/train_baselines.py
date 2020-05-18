@@ -190,6 +190,16 @@ def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, u
             # Update the environment
             env.step(action)
 
+        # add the instances from the episode to memory
+        for k in range(len(instances_episode)):
+            instance = instances_episode[k]
+            instance.target = torch.tensor([value[k % size_batch_instances]], dtype=torch.float).view([1, 1]).to(
+                device)
+            if len(replay_memory) < size_memory:
+                replay_memory.append(None)
+            replay_memory[count_memory % size_memory] = instance
+            count_memory += 1
+
         # perform an epoch over the replay memory
         # if there is enough new instances in memory
         if count_instances // n_instance_before_epoch > count_epochs and count_memory > size_memory:
