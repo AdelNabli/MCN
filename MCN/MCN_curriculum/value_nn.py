@@ -266,6 +266,6 @@ class ValueNet(nn.Module):
             score = score * G_torch.weight.view([-1,1])
         # sum the scores for each afterstates
         #score_state = global_add_pool(score, batch).to(device)
-        score_state = scatter(score, batch, dim=0)
+        score_state = scatter(score, batch, dim=0, reduce='max')
 
         return score_state
