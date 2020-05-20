@@ -859,10 +859,11 @@ def train_dqn(batch_size, size_train_data, size_val_data, size_test_data, lr, be
                 # if it's the turn of the attacker
                 if player == 1:
                     # we take the argmin
-                    values_approx, actions = scatter_min(action_values, batch, dim=0)
+                    _, actions = scatter_min(action_values, batch, dim=0)
                 else:
                     # we take the argmax
-                    values_approx, actions = scatter_max(action_values, batch, dim=0)
+                    _ , actions = scatter_max(action_values, batch, dim=0)
+                values_approx = action_values.gather(0, actions)
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
@@ -1081,8 +1082,10 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 mask_attack = batch_instances.player.eq(1)[:, 0]
                 mask_defend = torch.logical_not(mask_attack)
                 # compute both the max and min of the action values
-                val_max, _ = scatter_max(action_values, batch, dim=0)
-                val_min, _ = scatter_min(action_values, batch, dim=0)
+                _, id_max = scatter_max(action_values, batch, dim=0)
+                val_max = action_values.gather(0, id_max)
+                _, id_min = scatter_min(action_values, batch, dim=0)
+                val_min = action_values.gather(0, id_min)
                 val_max = val_max[mask_defend]
                 val_min = val_min[mask_attack]
                 values_approx = torch.cat([val_max, val_min])[:, 0]
