@@ -46,6 +46,7 @@ class EnvironmentDQN(object):
 
         self.batch_instance = list_instances
         self.mappings = []
+        self.batch_instance_torch = None
         self.batch_size = len(list_instances)
         self.rewards = [0]*self.batch_size
         self.Omega = list_instances[0].Omega
@@ -138,6 +139,61 @@ class EnvironmentDQN(object):
             self.next_player = get_player(self.next_Omega, self.next_Phi, self.next_Lambda)
 
 
+def get_next_budgets(Omega, Phi, Lambda):
+    """Compute the next triplet of budgets given the current one
+                and the player whose turn it is to play"""
+
+    # Init the variables
+    next_Omega = Omega
+    next_Phi = Phi
+    next_Lambda = Lambda
+    player = get_player(Omega, Phi,Lambda)
+    # Update the one to be updated
+    if player == 0:
+        next_Omega = Omega - 1
+    elif player == 1:
+        next_Phi = Phi - 1
+    elif player == 2:
+        next_Lambda = Lambda - 1
+
+    return next_Omega, next_Phi, next_Lambda
+
+
+def compute_all_possible_afterstates(list_instances):
+    # Init the variable
+    next_instances = []
+    # Get the current budget and the player whose turn it is to play
+    Omega = list_instances[0].Omega
+    Phi = list_instances[0].Phi
+    Lambda = list_instances[0].Lambda
+    Budget = Omega + Phi + Lambda
+    player = get_player(Omega, Phi, Lambda)
+    next_Omega, next_Phi, next_Lambda = get_next_budgets(Omega, Phi, Lambda)
+    # If there is only 1 of budget,
+    # we can solve the instance exactly
+    if Budget == 1:
+        batch_size = len(list_instances)
+        free_nodes = [[x for x in list_instances[k].G.nodes() if x not in list_instances[k].J] for k in
+                      range(batch_size)]
+        id_graphs = torch.tensor(
+            [k for k in range(batch_size) for i in range(len(free_nodes[k]))],
+            dtype=torch.int64).to(device)
+
+        for k in range(batch_size):
+            for node in free_nodes[k]:
+                G_k = list_instances[k].G.copy()
+                J_k = list_instances[k].J.copy()
+                if player == 1:
+                    J_k += [node]
+                else:
+                    G_k, mapping = new_graph(G_k, node)
+                    J_k = [mapping[j] for j in J_k]
+                new_instance = Instance(G_k, next_Omega, next_Phi, next_Lambda, J_k, 0)
+                next_instances.append(new_instance)
+
+    return next_instances, id_graphs
+
+
 def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
 
     with torch.no_grad():
@@ -200,28 +256,14 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
     Lambda = list_instances[0].Lambda
     Budget = Omega + Phi + Lambda
     player = get_player(Omega, Phi, Lambda)
+    list_afterstates, id_graphs = compute_all_possible_afterstates(list_instances)
     # If there is only 1 of budget,
     # we can solve the instance exactly
     if Budget == 1:
         rewards_batch = []
-        batch_size = len(list_instances)
-        free_nodes = [[x for x in list_instances[k].G.nodes() if x not in list_instances[k].J] for k in
-                           range(batch_size)]
-        id_graphs = torch.tensor(
-            [k for k in range(batch_size) for i in range(len(free_nodes[k]))],
-            dtype=torch.int64).to(device)
-
-        for k in range(batch_size):
-            for node in free_nodes[k]:
-                G_k = list_instances[k].G.copy()
-                J_k = list_instances[k].J.copy()
-                if player == 1:
-                    J_k += [node]
-                else:
-                    G_k, mapping = new_graph(G_k, node)
-                    J_k = [mapping[j] for j in J_k]
-                reward_k = compute_saved_nodes(G_k, J_k)
-                rewards_batch.append(reward_k)
+        for instance in list_afterstates:
+            reward = compute_saved_nodes(instance.G, instance.J)
+            rewards_batch.append(reward)
         rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
         if player == 1:
             value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
@@ -232,15 +274,15 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
     # Else, we need to unroll the experts
     else:
         # Initialize the environment
-        env = EnvironmentDQN(list_instances)
+        env = EnvironmentDQN(list_afterstates)
 
         while env.Budget >= 1:
 
             target_net = get_target_net(
                 list_experts,
-                env.next_Omega,
-                env.next_Phi,
-                env.next_Lambda,
+                env.Omega,
+                env.Phi,
+                env.Lambda,
                 Omega_max,
                 Phi_max,
                 Lambda_max,
