@@ -297,8 +297,7 @@ class DQN(nn.Module):
         self.dropout = nn.Dropout(p=p)
 
 
-    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J, player,
-                return_actions=False):
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J):
         """ Take a batch of states as input and returns the values of each state-action values.
 
                 Returns:
@@ -321,6 +320,5 @@ class DQN(nn.Module):
         score = self.BN2(score)
         score = self.lin3(score)
         score = F.relu(score)
-        #score_state = scatter(score, batch, dim=0, reduce='max')
 
         return score
