@@ -1,6 +1,7 @@
 import os
 import torch
 import random
+import numpy as np
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
@@ -154,6 +155,7 @@ def train_value_net_mc(batch_size, size_test_data, lr, betas, n_episode, update_
         env = Environment(list_instances)
         # Init the list of instances for the episode
         instances_episode = []
+        val_actions = np.zeros(len(list_instances))
         # Unroll the episode
         while env.Budget >= 1:
             # update the environment
@@ -189,7 +191,10 @@ def train_value_net_mc(batch_size, size_test_data, lr, betas, n_episode, update_
             count_instances += size_batch_instances
             # Update the environment
             env.step(action)
+            val_actions += env.action_values
 
+        value = np.array(value) + val_actions
+        value = value.tolist()
         # add the instances from the episode to memory
         for k in range(len(instances_episode)):
             instance = instances_episode[k]

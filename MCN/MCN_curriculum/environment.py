@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from MCN.utils import (
     graph_torch,
     new_graph,
@@ -6,6 +7,7 @@ from MCN.utils import (
     compute_saved_nodes,
     Instance,
     InstanceTorch,
+    graph_weights
 )
 
 
@@ -53,6 +55,7 @@ class Environment(object):
     def step(self, actions):
 
         self.actions = actions
+        self.compute_action_values(actions)
         self.Omega = self.next_Omega
         self.Phi = self.next_Phi
         self.Lambda = self.next_Lambda
@@ -62,6 +65,13 @@ class Environment(object):
         self.list_J = self.next_list_J
         self.list_instance_torch = self.next_list_instance_torch
         self.player = self.next_player
+
+    def compute_action_values(self, actions):
+
+        if self.player == 1:
+            self.action_values = np.zeros(len(actions))
+        else:
+            self.action_values = np.array(self.free_nodes_weights[actions])
 
     def compute_next_state_tensors(self):
 
@@ -102,6 +112,7 @@ class Environment(object):
         """Compute all the possible afterstates given the current player and the current states"""
 
         self.free_nodes = [[x for x in list(self.next_G[k].nodes) if x not in self.next_J[k]] for k in range(self.batch_size)]
+        self.free_nodes_weights = [graph_weights(self.next_G[k])[x] for k in range(self.batch_size) for x in list(self.next_G[k].nodes) if x not in self.next_J[k]]
         self.id_graphs = torch.tensor(
             [k for k in range(self.batch_size) for i in range(len(self.free_nodes[k]))], dtype=torch.int64).to(device)
         # init variables

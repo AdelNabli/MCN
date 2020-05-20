@@ -542,6 +542,20 @@ def new_graph(G, action):
     return (G_new, mapping)
 
 
+def graph_weights(G):
+
+    V = list(G.nodes())
+    w = dict()
+    for v in V:
+        # if the graph is weighted, gather the weights
+        if 'weight' in G.nodes[v].keys():
+            w[v] = float(G.nodes[v]['weight'])
+        # else, all weights are 1
+        else:
+            w[v] = 1.0
+    return w
+
+
 def compute_saved_nodes(G, I):
     """Compute the values of the saved node given a graph and
     a list of attacked nodes.

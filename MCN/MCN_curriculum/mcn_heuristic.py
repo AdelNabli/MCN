@@ -55,21 +55,15 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
     player = get_player(Omega, Phi, Lambda)
     # if it's the protector turn and we are to use the exact protector agent
     if player == 2 and exact_protection:
-        is_weighted = len(nx.get_node_attributes(G, 'weight').values()) != 0
-        # Gather the weights
-        if is_weighted:
-            weights = np.array([G.nodes[node]['weight'] for node in G.nodes()])
-        else:
-            weights = np.ones(len(G))
         value, _, P = solve_defender(J, G, Lambda)
-        val_P = np.sum(weights[P])
-        return value - val_P, [], [], P
+        return value, [], [], P
     else:
         # Initialize the environment
         instance = Instance(G, Omega, Phi, Lambda, J, 0)
         env = Environment([instance])
         # list of actions for the episode
         actions_episode = []
+        val_actions = 0
 
         while env.Budget >= 1:
 
@@ -77,15 +71,7 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
             if env.Budget == Lambda + 1 and exact_protection:
                 J_att = env.list_J[env.actions[0]]
                 G_att = env.list_G_nx[env.actions[0]]
-                is_weighted = len(nx.get_node_attributes(G_att, 'weight').values()) != 0
-                # Gather the weights
-                if is_weighted:
-                    weights = np.array([G_att.nodes[node]['weight'] for node in G_att.nodes()])
-                else:
-                    weights = np.ones(len(G_att))
                 I, _, P, value = AP(G_att, 1, Lambda, target=1, J=J_att)
-                val_P = np.sum(weights[P])
-                value -= val_P
                 actions_episode += I + P
                 break
 
@@ -119,8 +105,10 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
             actions_episode.append(action)
             # Update the environment
             env.step([action])
+            val_actions += np.sum(env.action_values)
 
         D, I, P = original_names_actions_episode(actions_episode, Phi, Lambda, exact_protection)
+        value += val_actions
 
         return (value, D, I, P)
 
@@ -133,6 +121,7 @@ def solve_mcn_heuristic_batch(list_experts, list_instances, Omega_max, Phi_max, 
 
     # Initialize the environment
     env = Environment(list_instances)
+    val_actions = np.zeros(len(list_instances))
 
     while env.Budget >= 1:
 
@@ -164,5 +153,8 @@ def solve_mcn_heuristic_batch(list_experts, list_instances, Omega_max, Phi_max, 
             J=env.next_J_tensor,
         )
         env.step(action)
+        val_actions += env.action_values
 
-    return value
+    value = np.array(value) + val_actions
+
+    return value.tolist()

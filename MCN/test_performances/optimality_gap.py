@@ -87,20 +87,7 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
                                                                 J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
                                                                 Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
                                                                 exact_protection=exact_protection)
-            # re-add the values of the nodes removed with the defender's moves
-            is_weighted = len(nx.get_node_attributes(instance.G, 'weight').values()) != 0
-            if is_weighted:
-                weights = np.array([instance.G.nodes[node]['weight'] for node in instance.G.nodes()])
-            else:
-                weights = np.ones(len(instance.G))
-            residual = instance.Omega - len(instance.D) + instance.Lambda - len(instance.P)
-            val_rest = 0
-            if residual > 0:
-                set_not_removed = set(instance.G.nodes()) - set(instance.D) - set(instance.P) - set(instance.J) - set(instance.I)
-                w_sorted = sorted(weights[list(set_not_removed)])
-                val_rest = np.sum(w_sorted[:residual])
-            value_heuristic += np.sum(weights[D_heur]) + np.sum(weights[P_heur])
-            value_exact = instance.value + np.sum(weights[instance.D]) + np.sum(weights[instance.P]) + val_rest
+            value_exact = instance.value
             # add the values to memory
             budget_values_true[k].append(value_exact)
             budget_values_heuristic[k].append(value_heuristic)
