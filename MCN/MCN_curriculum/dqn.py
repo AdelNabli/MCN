@@ -1,6 +1,6 @@
 import os
 import pickle
-import tqdm
+from tqdm import tqdm
 import math
 import random
 import numpy as np
