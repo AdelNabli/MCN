@@ -24,15 +24,15 @@ from MCN.test_performances.optimality_gap import compute_optimality_gap
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train_value_net_baseline(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
-                             eps_end, eps_decay, eps_start,
-                             dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-                             n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
-                             w_max=1, directed=False,
-                             num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                             training_method='MC', exact_protection=False, rate_display=200, batch_unroll=None):
+def train_value_net_mc(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
+                       eps_end, eps_decay, eps_start,
+                       dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
+                       n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
+                       w_max=1, directed=False,
+                       num_workers=0, resume_training=False, path_train="", path_test_data=None,
+                       exact_protection=False, rate_display=200, batch_unroll=None):
 
-    """Train a neural network to solve the MCN problem either using Monte Carlo samples or with TD"""
+    """Train a neural network to solve the MCN problem either using Monte Carlo samples"""
 
     # Gather the hyperparameters
     dict_args = locals()

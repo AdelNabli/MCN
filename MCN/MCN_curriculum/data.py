@@ -49,6 +49,11 @@ def collate_fn(list_instances):
     instances_collated.Lambdas_norm = torch.cat([instances.Lambdas_norm for instances in list_instances])
     instances_collated.J = torch.cat([instances.J for instances in list_instances])
     instances_collated.target = torch.cat([instances.target for instances in list_instances])
+    # try if there are 'players' in the instances
+    try:
+        instances_collated.player = torch.cat([instances.player for instances in list_instances])
+    except:
+        instances_collated.player = None
 
     return instances_collated
 

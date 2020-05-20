@@ -4,7 +4,7 @@ import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from datetime import datetime
-from MCN.utils import save_models, load_training_param, count_param_NN, compute_loss_test
+from MCN.utils import save_models, load_training_param, count_param_NN
 from MCN.test_performances.optimality_gap import compute_optimality_gap
 from MCN.MCN_curriculum.value_nn import ValueNet
 from MCN.MCN_curriculum.experts import TargetExperts

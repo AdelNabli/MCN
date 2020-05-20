@@ -424,7 +424,8 @@ class InstanceTorch:
     """Creates an instance object to store all the tensors necessary to compute
     the approximate values with the ValueNet"""
 
-    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J, target=None):
+    def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J,
+                 target=None, player=None):
 
         self.G_torch = G_torch
         self.n_nodes = n_nodes
@@ -436,6 +437,7 @@ class InstanceTorch:
         self.Lambdas_norm = Lambdas_norm
         self.J = J
         self.target = target
+        self.player = player
 
 
 def instance_to_torch(instance):
@@ -462,6 +464,9 @@ def instance_to_torch(instance):
 
     # Put the value into a tensor
     target = torch.tensor([instance.value], dtype=torch.float).view([1, 1]).to(device)
+    # Get the player
+    player = get_player(instance.Omega, instance.Phi, instance.Lambda)
+    player = torch.tensor([player], dtype=torch.float).view([1, 1]).to(device)
     # Gather everything into a single InstanceTorch object
     instance_torch = InstanceTorch(
         G_torch,
@@ -474,6 +479,7 @@ def instance_to_torch(instance):
         Lambda_norm,
         J,
         target,
+        player
     )
 
     return instance_torch

@@ -260,12 +260,67 @@ class ValueNet(nn.Module):
         score = self.BN2(score)
         score = self.lin3(score)
         # put the score in [0,1]
-        #score = torch.sigmoid(score)
-        score = F.relu(score)
+        score = torch.sigmoid(score)
         if self.weighted:
             score = score * G_torch.weight.view([-1,1])
         # sum the scores for each afterstates
-        #score_state = global_add_pool(score, batch).to(device)
-        score_state = scatter(score, batch, dim=0, reduce='max')
+        score_state = global_add_pool(score, batch).to(device)
 
         return score_state
+
+
+class DQN(nn.Module):
+    r"""Instead of computing a scrore for each state, compute the state-action values.
+    The only change compared to ValueNet is in the end"""
+
+    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden,
+                 n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):
+        super(ValueNet, self).__init__()
+
+        self.weighted = weighted
+        self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
+                                        dim_values, dim_hidden, K, alpha, weighted)
+        self.context_encoder = ContextEncoder(n_pool, dim_embedding, dim_hidden, weighted)
+        # Score for each node
+        if weighted:
+            dim_context = dim_embedding * n_pool + 8
+            first_dim = dim_context + dim_embedding + 2
+        else:
+            dim_context = dim_embedding * n_pool + 7
+            first_dim = dim_context + dim_embedding + 1
+        self.lin1 = nn.Linear(first_dim, dim_hidden)
+        self.BN1 = BatchNorm(dim_hidden)
+        self.lin2 = nn.Linear(dim_hidden, dim_embedding)
+        self.BN2 = BatchNorm(dim_embedding)
+        self.lin3 = nn.Linear(dim_embedding, 1)
+        # dropout
+        self.dropout = nn.Dropout(p=p)
+
+
+    def forward(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J, player,
+                return_actions=False):
+        """ Take a batch of states as input and returns the values of each state-action values.
+
+                Returns:
+                -------
+                score: float tensor (size = nb tot of nodes in Batch x 1),
+                       score of each possible state-action values"""
+
+        G = self.node_encoder(G_torch, J)
+        context = self.context_encoder(G, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm)
+        # retrieve the data from G
+        x, edge_index, batch = G.x, G.edge_index, G.batch
+        x_score = torch.cat([x, context[batch]], 1)
+        score = self.lin1(x_score)
+        score = self.dropout(score)
+        score = F.leaky_relu(score, 0.2)
+        score = self.BN1(score)
+        score = self.lin2(score)
+        score = self.dropout(score)
+        score = F.leaky_relu(score, 0.2)
+        score = self.BN2(score)
+        score = self.lin3(score)
+        score = F.relu(score)
+        #score_state = scatter(score, batch, dim=0, reduce='max')
+
+        return score
