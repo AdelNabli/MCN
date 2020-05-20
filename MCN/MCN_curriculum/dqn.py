@@ -268,6 +268,7 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
         else:
             value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
         value = value.view(-1).tolist()
+        return value
     # Else, we need to unroll the experts
     else:
         # Initialize the environment
@@ -314,8 +315,9 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
                 _, actions = scatter_max(values_after, id_graphs, dim=0)
             actions = actions.view(-1).tolist()
             env.step(actions)
-            value = env.rewards
-    return value
+        if env.Budget == 1:
+            new_list_instances = env.batch_instance
+            return solve_mcn_heuristic_batch_dqn(list_experts, new_list_instances, Omega_max, Phi_max, Lambda_max)
 
 
 def load_create_datasets_dqn(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
