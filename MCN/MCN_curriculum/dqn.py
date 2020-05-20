@@ -169,27 +169,24 @@ def compute_all_possible_afterstates(list_instances):
     Budget = Omega + Phi + Lambda
     player = get_player(Omega, Phi, Lambda)
     next_Omega, next_Phi, next_Lambda = get_next_budgets(Omega, Phi, Lambda)
-    # If there is only 1 of budget,
-    # we can solve the instance exactly
-    if Budget == 1:
-        batch_size = len(list_instances)
-        free_nodes = [[x for x in list_instances[k].G.nodes() if x not in list_instances[k].J] for k in
-                      range(batch_size)]
-        id_graphs = torch.tensor(
-            [k for k in range(batch_size) for i in range(len(free_nodes[k]))],
-            dtype=torch.int64).to(device)
+    batch_size = len(list_instances)
+    free_nodes = [[x for x in list_instances[k].G.nodes() if x not in list_instances[k].J] for k in
+                  range(batch_size)]
+    id_graphs = torch.tensor(
+        [k for k in range(batch_size) for i in range(len(free_nodes[k]))],
+        dtype=torch.int64).to(device)
 
-        for k in range(batch_size):
-            for node in free_nodes[k]:
-                G_k = list_instances[k].G.copy()
-                J_k = list_instances[k].J.copy()
-                if player == 1:
-                    J_k += [node]
-                else:
-                    G_k, mapping = new_graph(G_k, node)
-                    J_k = [mapping[j] for j in J_k]
-                new_instance = Instance(G_k, next_Omega, next_Phi, next_Lambda, J_k, 0)
-                next_instances.append(new_instance)
+    for k in range(batch_size):
+        for node in free_nodes[k]:
+            G_k = list_instances[k].G.copy()
+            J_k = list_instances[k].J.copy()
+            if player == 1:
+                J_k += [node]
+            else:
+                G_k, mapping = new_graph(G_k, node)
+                J_k = [mapping[j] for j in J_k]
+            new_instance = Instance(G_k, next_Omega, next_Phi, next_Lambda, J_k, 0)
+            next_instances.append(new_instance)
 
     return next_instances, id_graphs
 
