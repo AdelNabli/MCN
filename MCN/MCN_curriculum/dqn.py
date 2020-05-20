@@ -239,9 +239,9 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
 
             target_net = get_target_net(
                 list_experts,
-                env.Omega,
-                env.Phi,
-                env.Lambda,
+                env.next_Omega,
+                env.next_Phi,
+                env.next_Lambda,
                 Omega_max,
                 Phi_max,
                 Lambda_max,
