@@ -246,6 +246,8 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
                 Phi_max,
                 Lambda_max,
             )
+            print('target net', target_net)
+            print('list_target_nets', list_experts)
             # Take an action
             action = take_action_deterministic_batch_dqn(
                 target_net,
