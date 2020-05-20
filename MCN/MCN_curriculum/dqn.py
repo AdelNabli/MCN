@@ -62,13 +62,13 @@ class EnvironmentDQN(object):
     def batch_torch(self):
 
         # initialize a list of instance torch
-        self.batch_instance_torch = []
+        batch_instance_torch = []
         # transform the list of instances to a list of instance torch
         for instance in self.batch_instance:
             instance_torch = instance_to_torch(instance)
-            self.batch_instance_torch.append(instance_torch)
+            batch_instance_torch.append(instance_torch)
         # create a proper batch from the list
-        self.batch_instance_torch = collate_fn(self.batch_instance_torch)
+        self.batch_instance_torch = collate_fn(batch_instance_torch)
 
     def compute_mappings(self):
         """Compute a mapping 'id_free_node_batch': 'true_name_of_node_in_graph' for each
@@ -157,13 +157,13 @@ def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
                                    )
         action_values = action_values[mask_values]
         batch = batch[mask_values]
-    # if it's the turn of the attacker
-    if player == 1:
-        # we take the argmin
-        values, actions = scatter_min(action_values, batch, dim=0)
-    else:
-        # we take the argmax
-        values, actions = scatter_max(action_values, batch, dim=0)
+        # if it's the turn of the attacker
+        if player == 1:
+            # we take the argmin
+            values, actions = scatter_min(action_values, batch, dim=0)
+        else:
+            # we take the argmax
+            values, actions = scatter_max(action_values, batch, dim=0)
 
     return actions.view(-1).tolist()
 
@@ -413,15 +413,14 @@ def compute_loss_test_dqn(test_set_generators, list_players, value_net=None, lis
                     action_values = action_values[mask_values]
                     batch = batch[mask_values]
                     # if it's the turn of the attacker
-                if player == 1:
-                    # we take the argmin
-                    values, actions = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    values, actions = scatter_max(action_values, batch, dim=0)
-
-                val_approx.append(values)
-                target.append(batch_instances.target)
+                    if player == 1:
+                        # we take the argmin
+                        values, actions = scatter_min(action_values, batch, dim=0)
+                    else:
+                        # we take the argmax
+                        values, actions = scatter_max(action_values, batch, dim=0)
+                    val_approx.append(values)
+                    target.append(batch_instances.target)
                 # Compute the loss
                 target = torch.cat(target)
                 val_approx = torch.cat(val_approx)
@@ -570,7 +569,7 @@ class TargetExpertsDQN(object):
         self.losses_test_set = [0] * (self.n_max)
         self.loss_value_net = math.inf
         self.Budget_target = 1
-        self.list_players = [0]*Omega_max + [1]*Phi_max + [2]*Lambda_max
+        self.list_players = [2]*Lambda_max + [1]*Phi_max + [0]*Omega_max
         # If use the exact algorithm for protection, update the parameters
         self.exact_protection = exact_protection
         if exact_protection:
@@ -661,12 +660,12 @@ class TargetExpertsDQN(object):
                 action_values = action_values[mask_values]
                 batch = batch[mask_values]
                 # if it's the turn of the attacker
-            if player == 1:
-                # we take the argmin
-                values, actions = scatter_min(action_values, batch, dim=0)
-            else:
-                # we take the argmax
-                values, actions = scatter_max(action_values, batch, dim=0)
+                if player == 1:
+                    # we take the argmin
+                    values, actions = scatter_min(action_values, batch, dim=0)
+                else:
+                    # we take the argmax
+                    values, actions = scatter_max(action_values, batch, dim=0)
                 val_approx.append(values)
                 target.append(batch_instances.target)
             # Compute the loss
@@ -819,12 +818,12 @@ def train_dqn(batch_size, size_train_data, size_val_data, size_test_data, lr, be
                 action_values = action_values[mask_values]
                 batch = batch[mask_values]
                 # if it's the turn of the attacker
-            if player == 1:
-                # we take the argmin
-                values_approx, actions = scatter_min(action_values, batch, dim=0)
-            else:
-                # we take the argmax
-                values_approx, actions = scatter_max(action_values, batch, dim=0)
+                if player == 1:
+                    # we take the argmin
+                    values_approx, actions = scatter_min(action_values, batch, dim=0)
+                else:
+                    # we take the argmax
+                    values_approx, actions = scatter_max(action_values, batch, dim=0)
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
@@ -894,7 +893,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
     # Compute n_max
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     max_budget = Omega_max + Phi_max + Lambda_max
-    list_players = [0]*Omega_max + [1]*Phi_max + [2]*Lambda_max
+    list_players = [2]*Lambda_max + [1]*Phi_max + [0]*Omega_max
     # Compute the size of the memory and the rate of epoch over it
     # depending on the number of time we want to 'see' each instance, the
     # total number of episodes to generate and the batch size
