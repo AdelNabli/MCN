@@ -262,38 +262,59 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
         for instance in list_afterstates:
             reward = compute_saved_nodes(instance.G, instance.J)
             rewards_batch.append(reward)
+        rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
+        if player == 1:
+            value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
+        else:
+            value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
+        value = value.view(-1).tolist()
     # Else, we need to unroll the experts
     else:
         # Initialize the environment
-        env = EnvironmentDQN(list_afterstates)
+        env = EnvironmentDQN(list_instances)
 
         while env.Budget >= 1:
 
+            list_afterstates, id_graphs = compute_all_possible_afterstates(env.batch_instance)
+            env2 = EnvironmentDQN(list_afterstates)
             target_net = get_target_net(
                 list_experts,
-                env.Omega,
-                env.Phi,
-                env.Lambda,
+                env2.Omega,
+                env2.Phi,
+                env2.Lambda,
                 Omega_max,
                 Phi_max,
                 Lambda_max,
             )
             # Take an action
-            action = take_action_deterministic_batch_dqn(
-                target_net,
-                env.player,
-                env.batch_instance_torch,
-            )
-            env.step(action)
-            rewards_batch = env.rewards
-
-    rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
-    if player == 1:
-        value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
-    else:
-        value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
-    value = value.view(-1).tolist()
-
+            batch_instances = env2.batch_instance_torch
+            with torch.no_grad():
+                # We compute the target values
+                batch = batch_instances.G_torch.batch
+                action_values = target_net(batch_instances.G_torch,
+                                           batch_instances.n_nodes,
+                                           batch_instances.Omegas,
+                                           batch_instances.Phis,
+                                           batch_instances.Lambdas,
+                                           batch_instances.Omegas_norm,
+                                           batch_instances.Phis_norm,
+                                           batch_instances.Lambdas_norm,
+                                           batch_instances.J,
+                                           )
+                # if it's the turn of the attacker
+                if env2.player == 1:
+                    # we take the argmin
+                    values_after, actions_after = scatter_min(action_values, batch, dim=0)
+                else:
+                    # we take the argmax
+                    values_after, actions_after = scatter_max(action_values, batch, dim=0)
+            if env.player == 1:
+                _, actions = scatter_min(values_after, id_graphs, dim=0)
+            else:
+                _, actions = scatter_max(values_after, id_graphs, dim=0)
+            actions = actions.view(-1).tolist()
+            env.step(actions)
+            value = env.rewards
     return value
 
 
