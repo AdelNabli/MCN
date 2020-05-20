@@ -275,7 +275,7 @@ class DQN(nn.Module):
 
     def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden,
                  n_heads, n_att_layers, n_pool, K, alpha, p, weighted=False):
-        super(ValueNet, self).__init__()
+        super(DQN, self).__init__()
 
         self.weighted = weighted
         self.node_encoder = NodeEncoder(dim_input, n_heads, n_att_layers, dim_embedding,
