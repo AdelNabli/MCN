@@ -113,7 +113,7 @@ class EnvironmentDQN(object):
             G_k = instance_k.G.copy()
             node_k = self.mappings[k][action_k]
             if self.player == 1:
-                J_k += + [node_k]
+                J_k += [node_k]
             else:
                 G_k, mapping = new_graph(G_k, node_k)
                 J_k = [mapping[j] for j in J_k]
