@@ -109,13 +109,14 @@ class EnvironmentDQN(object):
         for k in range(self.batch_size):
             action_k = int(actions[k])
             instance_k = self.batch_instance[k]
+            J_k = instance_k.J.copy()
+            G_k = instance_k.G.copy()
             node_k = self.mappings[k][action_k]
             if self.player == 1:
-                J_k = instance_k.J + [node_k]
-                G_k = instance_k.G
+                J_k += + [node_k]
             else:
-                G_k, mapping = new_graph(instance_k.G, node_k)
-                J_k = [mapping[j] for j in instance_k.J]
+                G_k, mapping = new_graph(G_k, node_k)
+                J_k = [mapping[j] for j in J_k]
             # if we are not at the end of the episode
             # we need to compute the new states
             if self.next_player != 3:
