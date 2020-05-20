@@ -264,13 +264,6 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
         for instance in list_afterstates:
             reward = compute_saved_nodes(instance.G, instance.J)
             rewards_batch.append(reward)
-        rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
-        if player == 1:
-            value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
-        else:
-            value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
-        value = value.view(-1).tolist()
-
     # Else, we need to unroll the experts
     else:
         # Initialize the environment
@@ -294,7 +287,14 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
                 env.batch_instance_torch,
             )
             env.step(action)
-            value = env.rewards
+            rewards_batch = env.rewards
+
+    rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
+    if player == 1:
+        value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
+    else:
+        value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
+    value = value.view(-1).tolist()
 
     return value
 
