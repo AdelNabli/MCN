@@ -225,9 +225,9 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
                 rewards_batch.append(reward_k)
         rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
         if player == 1:
-            value = scatter(rewards_batch, id_graphs, reduce='min').view(-1).tolist()
+            value, _ = scatter_min(rewards_batch, id_graphs, dim=0).view(-1).tolist()
         else:
-            value = scatter(rewards_batch, id_graphs, reduce='max').view(-1).tolist()
+            value, _ = scatter_max(rewards_batch, id_graphs, dim=0).view(-1).tolist()
 
     # Else, we need to unroll the experts
     else:
