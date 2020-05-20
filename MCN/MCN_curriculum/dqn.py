@@ -1085,11 +1085,11 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 val_min, _ = scatter_min(action_values, batch, dim=0)
                 val_max = val_max[mask_defend]
                 val_min = val_min[mask_attack]
-                values_approx = torch.cat(val_max, val_min)[:, 0]
+                values_approx = torch.cat([val_max, val_min])[:, 0]
                 # compute both the max and the min of the targets
                 target_max = batch_instances.target[mask_defend]
                 target_min = batch_instances.target[mask_attack]
-                batch_target = torch.cat(target_max, target_min)[:, 0]
+                batch_target = torch.cat([target_max, target_min])[:, 0]
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
