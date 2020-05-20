@@ -1040,7 +1040,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             for k in range(len(batch_instance)):
                 instance_k = batch_instance[k]
                 instance_k.value = value[k]
-                instance_k_torch = instance_k_torch(instance_k)
+                instance_k_torch = instance_to_torch(instance_k)
                 if len(replay_memory) < size_memory:
                     replay_memory.append(None)
                 replay_memory[count_memory % size_memory] = instance_k_torch
