@@ -143,7 +143,7 @@ def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
 
     with torch.no_grad():
         # We compute the target values
-        batch = batch_instances.batch
+        batch = batch_instances.G_torch.batch
         mask_values = batch_instances.J.eq(0)[:, 0]
         action_values = target_net(batch_instances.G_torch,
                                    batch_instances.n_nodes,
@@ -398,7 +398,7 @@ def compute_loss_test_dqn(test_set_generators, list_players, value_net=None, lis
                 list_losses.append(0)
             else:
                 for i_batch, batch_instances in enumerate(test_set_generators[k]):
-                    batch = batch_instances.batch
+                    batch = batch_instances.G_torch.batch
                     mask_values = batch_instances.J.eq(0)[:, 0]
                     action_values = target_net(batch_instances.G_torch,
                                                batch_instances.n_nodes,
@@ -646,7 +646,7 @@ class TargetExpertsDQN(object):
             # by the current value net on the validation set
             # for every batch
             for i_batch, batch_instances in enumerate(val_generator):
-                batch = batch_instances.batch
+                batch = batch_instances.G_torch.batch
                 mask_values = batch_instances.J.eq(0)[:, 0]
                 action_values = new_target_net(batch_instances.G_torch,
                                                batch_instances.n_nodes,
@@ -804,7 +804,7 @@ def train_dqn(batch_size, size_train_data, size_val_data, size_test_data, lr, be
             # Training for all batches in the training set
             for i_batch, batch_instances in enumerate(training_generator):
                 # Compute the approximate values
-                batch = batch_instances.batch
+                batch = batch_instances.G_torch.batch
                 mask_values = batch_instances.J.eq(0)[:, 0]
                 action_values = value_net(batch_instances.G_torch,
                                           batch_instances.n_nodes,
@@ -1025,7 +1025,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_data = [replay_memory[k] for k in id_batch]
                 batch_instances = collate_fn(batch_data)
                 # Compute the approximate values
-                batch = batch_instances.batch
+                batch = batch_instances.G_torch.batch
                 mask_values = batch_instances.J.eq(0)[:, 0]
                 action_values = value_net(batch_instances.G_torch,
                                           batch_instances.n_nodes,
