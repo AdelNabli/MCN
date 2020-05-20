@@ -120,7 +120,7 @@ class EnvironmentDQN(object):
             # if we are not at the end of the episode
             # we need to compute the new states
             if self.next_player != 3:
-                new_instance = Instance(G_k, self.Omega, self.Phi, self.Lambda, J_k, 0)
+                new_instance = Instance(G_k, self.next_Omega, self.next_Phi, self.next_Lambda, J_k, 0)
                 next_instances.append(new_instance)
             # else, we need to compute the reward of taking the action
             else:
