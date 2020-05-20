@@ -273,7 +273,7 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
         # Initialize the environment
         env = EnvironmentDQN(list_instances)
 
-        while env.Budget >= 1:
+        while env.Budget > 1:
 
             list_afterstates, id_graphs = compute_all_possible_afterstates(env.batch_instance)
             env2 = EnvironmentDQN(list_afterstates)
