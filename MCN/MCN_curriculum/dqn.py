@@ -1118,7 +1118,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_states = collate_fn(list_states)
                 batch_afterstates = collate_fn(list_afterstates)
                 batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1]).to(device)
-                batch_rewards = torch.tensor(list_rewards, dtype=torch.long).view([len(list_rewards), 1]).to(device)
+                batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
