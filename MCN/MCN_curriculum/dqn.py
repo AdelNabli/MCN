@@ -1127,6 +1127,20 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                           batch_states.Lambdas_norm,
                                           batch_states.J,
                                           )
+                test = torch.sum(torch.isnan(batch_states.G_torch.x))
+                test += torch.sum(torch.isnan(batch_states.n_nodes))
+                test +=torch.sum(torch.isnan(batch_states.Omegas))
+                test +=torch.sum(torch.isnan(batch_states.Phis))
+                test +=torch.sum(torch.isnan(batch_states.Lambdas))
+                test +=torch.sum(torch.isnan(batch_states.J))
+                
+                if test > 0 :
+                    print('G_torch', batch_states.G_torch.x)
+                    print('n_nodes:', batch_states.n_nodes)
+                    print('Omegas:', batch_states.Omegas)
+                    print('Phis', batch_states.Phis)
+                    print('Lambdas', batch_states.Lambdas)
+                    print('J', batch_states.J)
                 # mask the attacked nodes
                 mask_values = batch_states.J.eq(0)[:, 0]
                 action_values = action_values[mask_values]
@@ -1148,6 +1162,21 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                                batch_afterstates.Lambdas_norm,
                                                batch_afterstates.J,
                                                )
+                    test = torch.sum(torch.isnan(batch_afterstates.G_torch.x))
+                    test += torch.sum(torch.isnan(batch_afterstates.n_nodes))
+                    test += torch.sum(torch.isnan(batch_afterstates.Omegas))
+                    test += torch.sum(torch.isnan(batch_afterstates.Phis))
+                    test += torch.sum(torch.isnan(batch_afterstates.Lambdas))
+                    test += torch.sum(torch.isnan(batch_afterstates.J))
+
+                    if test > 0:
+                        print('G_torch', batch_afterstates.G_torch.x)
+                        print('n_nodes:', batch_afterstates.n_nodes)
+                        print('Omegas:', batch_afterstates.Omegas)
+                        print('Phis', batch_afterstates.Phis)
+                        print('Lambdas', batch_afterstates.Lambdas)
+                        print('J', batch_afterstates.J)
+                        
                     batch = batch_afterstates.G_torch.batch
                     mask_J = batch_afterstates.J.eq(0)[:, 0]
                     # mask the attacked nodes
