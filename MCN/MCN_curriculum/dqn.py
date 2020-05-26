@@ -1119,6 +1119,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
                 print('error action values')
+                print('J : ', batch_states.J)
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
                                           batch_states.Omegas,
@@ -1197,7 +1198,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 optimizer.zero_grad()
                 # Compute the loss of the batch
                 print('approx value', approx_values.size())
-                print('target', target, target.size())
+                print('target', target.size())
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
                 print('loss', loss)
                 # Update the parameters of the Value_net
