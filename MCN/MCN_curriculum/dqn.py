@@ -1048,7 +1048,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         # Initialize the environment
         env = EnvironmentDQN(list_instances)
         # Init the list of instances for the episode
-        instances_episode = []
         current_states = None
         current_actions = None
         current_rewards = None
@@ -1057,8 +1056,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         while env.Budget >= 1:
             last_states = current_states
             current_states = env.list_instance_torch
-
-            instances_episode.append(env.batch_instance)
             action = sample_action_batch_dqn(target_net,
                                              env.player,
                                              env.batch_instance_torch,
@@ -1088,7 +1085,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                     replay_memory_rewards[count_memory % size_memory] = last_rewards[k]
                     count_memory += 1
             # If we are in the next step, we push to memory the end rewards
-            if env.Budget == 0:
+            if env.Budget == 0 and cpt_budget > 1:
                 for k in range(batch_size):
                     if len(replay_memory_states) < size_memory:
                         replay_memory_states.append(None)
@@ -1167,8 +1164,8 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
-                print('approx value', approx_values, approx_values.size())
-                print('target', target, target.size())
+                print('approx value', approx_values.size())
+                print('target', target.size())
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
                 print('loss', loss)
                 # compute the loss on the test set using the value_net_bis
