@@ -1076,6 +1076,8 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             last_rewards = current_rewards
             current_rewards = env.rewards
             cpt_budget += 1
+            if env.Budget == 0:
+                print('rewards', current_rewards)
 
             # if we have the couples (state, afterstates) available
             if cpt_budget > 1:
