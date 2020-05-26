@@ -425,7 +425,7 @@ class InstanceTorch:
     the approximate values with the ValueNet"""
 
     def __init__(self, G_torch, n_nodes, Omegas, Phis, Lambdas, Omegas_norm, Phis_norm, Lambdas_norm, J,
-                 target=None, player=None):
+                 target=None, next_player=None):
 
         self.G_torch = G_torch
         self.n_nodes = n_nodes
@@ -437,7 +437,7 @@ class InstanceTorch:
         self.Lambdas_norm = Lambdas_norm
         self.J = J
         self.target = target
-        self.player = player
+        self.next_player = next_player
 
 
 def instance_to_torch(instance):
@@ -465,8 +465,8 @@ def instance_to_torch(instance):
     # Put the value into a tensor
     target = torch.tensor([instance.value], dtype=torch.float).view([1, 1]).to(device)
     # Get the player
-    player = get_player(instance.Omega, instance.Phi, instance.Lambda)
-    player = torch.tensor([player], dtype=torch.float).view([1, 1]).to(device)
+    next_player = get_next_player(instance.Omega, instance.Phi, instance.Lambda)
+    next_player = torch.tensor([next_player], dtype=torch.float).view([1, 1]).to(device)
     # Gather everything into a single InstanceTorch object
     instance_torch = InstanceTorch(
         G_torch,
@@ -479,7 +479,7 @@ def instance_to_torch(instance):
         Lambda_norm,
         J,
         target,
-        player
+        next_player
     )
 
     return instance_torch
@@ -632,6 +632,22 @@ def get_player(Omega, Phi, Lambda):
     # if no budget is left, it's the end of the game
     else:
         return 3
+
+
+def get_next_player(Omega, Phi, Lambda):
+    """Returns the next player given the budgets."""
+    next_Omega = Omega
+    next_Phi = Phi
+    next_Lambda = Lambda
+    player = get_player(Omega, Phi, Lambda)
+    if player == 0:
+        next_Omega = Omega - 1
+    elif player == 1:
+        next_Phi = Phi - 1
+    elif player == 2:
+        next_Lambda = Lambda - 1
+
+    return get_player(next_Omega, next_Phi, next_Lambda)
 
 
 def take_action_deterministic(target_net, player, next_player, rewards, next_afterstates, **kwargs):

@@ -47,6 +47,7 @@ class EnvironmentDQN(object):
         self.batch_instance = list_instances
         self.mappings = []
         self.batch_instance_torch = None
+        self.list_instance_torch = None
         self.batch_size = len(list_instances)
         self.rewards = [0]*self.batch_size
         self.Omega = list_instances[0].Omega
@@ -67,6 +68,7 @@ class EnvironmentDQN(object):
         for instance in self.batch_instance:
             instance_torch = instance_to_torch(instance)
             batch_instance_torch.append(instance_torch)
+        self.list_instance_torch = batch_instance_torch
         # create a proper batch from the list
         self.batch_instance_torch = collate_fn(batch_instance_torch)
 
@@ -961,9 +963,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
     # depending on the number of time we want to 'see' each instance, the
     # total number of episodes to generate and the batch size
     size_memory = batch_size * n_time_instance_seen
-    n_instance_before_epoch = batch_size
-    size_batch_instances = batch_size
-    n_episode_batch = n_episode // size_batch_instances
     # Init the value net
     value_net = DQN(
         dim_input=5,
@@ -981,7 +980,10 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
     # Initialize the optimizer
     optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
     # Initialize the memory
-    replay_memory = []
+    replay_memory_states = []
+    replay_memory_actions = []
+    replay_memory_afterstates = []
+    replay_memory_rewards = []
     count_memory = 0
     # If resume training
     if resume_training:
@@ -1027,7 +1029,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
 
     print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
 
-    for episode in tqdm(range(n_episode_batch)):
+    for episode in tqdm(range(n_episode)):
         # Sample a random batch of instances from where to begin
         list_instances = generate_random_batch_instance(
             batch_size,
@@ -1047,8 +1049,15 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         env = EnvironmentDQN(list_instances)
         # Init the list of instances for the episode
         instances_episode = []
+        current_states = None
+        current_actions = None
+        current_rewards = None
+        cpt_budget = 0
         # Unroll the episode
         while env.Budget >= 1:
+            last_states = current_states
+            current_states = env.list_instance_torch
+
             instances_episode.append(env.batch_instance)
             action = sample_action_batch_dqn(target_net,
                                              env.player,
@@ -1059,67 +1068,106 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                              count_steps
                                              )
             env.step(action)
-            value = env.rewards
-        # Add the instances from the episode to memory
-        for batch_instance in instances_episode:
-            for k in range(len(batch_instance)):
-                instance_k = batch_instance[k]
-                instance_k.value = value[k]
-                instance_k_torch = instance_to_torch(instance_k)
-                if len(replay_memory) < size_memory:
-                    replay_memory.append(None)
-                replay_memory[count_memory % size_memory] = instance_k_torch
-                count_memory += 1
+            last_actions = current_actions
+            current_actions = action
+            last_rewards = current_rewards
+            current_rewards = env.rewards
+            cpt_budget += 1
 
-        # perform an epoch over the replay memory
-        # if there is enough new instances in memory
-        if count_memory > size_memory:
-            # create a list of randomly shuffled indices to sample batches from
-            memory_size = len(replay_memory)
-            n_batch = memory_size // batch_size + 1 * (memory_size % batch_size > 0)
-            ids_batch = random.sample(range(memory_size), memory_size)
-            # sample the batches from the memory in the order defined with ids_batch
-            for i_batch in range(n_batch):
-                if i_batch == n_batch - 1:
-                    id_batch = ids_batch[i_batch*batch_size:]
-                else:
-                    id_batch = ids_batch[i_batch*batch_size: (i_batch + 1)*batch_size]
-                batch_data = [replay_memory[k] for k in id_batch]
-                batch_instances = collate_fn(batch_data)
+            # if we have the couples (state, afterstates) available
+            if cpt_budget > 1:
+                for k in range(batch_size):
+                    if len(replay_memory_states) < size_memory:
+                        replay_memory_states.append(None)
+                        replay_memory_afterstates.append(None)
+                        replay_memory_actions.append(None)
+                        replay_memory_rewards.append(None)
+                    replay_memory_states[count_memory % size_memory] = last_states[k]
+                    replay_memory_actions[count_memory % size_memory] = last_actions[k]
+                    replay_memory_afterstates[count_memory % size_memory] = current_states[k]
+                    replay_memory_rewards[count_memory % size_memory] = last_rewards[k]
+                    count_memory += 1
+            # If we are in the next step, we push to memory the end rewards
+            if env.Budget == 0:
+                for k in range(batch_size):
+                    if len(replay_memory_states) < size_memory:
+                        replay_memory_states.append(None)
+                        replay_memory_afterstates.append(None)
+                        replay_memory_actions.append(None)
+                        replay_memory_rewards.append(None)
+                    replay_memory_states[count_memory % size_memory] = current_states[k]
+                    replay_memory_actions[count_memory % size_memory] = current_actions[k]
+                    # doesn't matter what we put in the afterstates here
+                    replay_memory_afterstates[count_memory % size_memory] = current_states[k]
+                    replay_memory_rewards[count_memory % size_memory] = current_rewards[k]
+                    count_memory += 1
+
+
+            # perform an epoch over the replay memory
+            # if there is enough new instances in memory
+            if count_memory > size_memory:
+                # create a list of randomly shuffled indices to sample batches from
+                memory_size = len(replay_memory_states)
+                id_batch = random.sample(range(memory_size), batch_size)
+                # gather the states, afterstates, actions and rewards
+                list_states = [replay_memory_states[k] for k in id_batch]
+                list_afterstates = [replay_memory_afterstates[k] for k in id_batch]
+                list_actions = [replay_memory_actions[k] for k in id_batch]
+                list_rewards = [replay_memory_rewards[k] for k in id_batch]
+                # create the tensors
+                batch_states = collate_fn(list_states)
+                batch_afterstates = collate_fn(list_afterstates)
+                batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1])
+                batch_rewards = torch.tensor(list_rewards, dtype=torch.long).view([len(list_rewards), 1])
                 # Compute the approximate values
-                batch = batch_instances.G_torch.batch
-                mask_values = batch_instances.J.eq(0)[:, 0]
-                action_values = value_net(batch_instances.G_torch,
-                                          batch_instances.n_nodes,
-                                          batch_instances.Omegas,
-                                          batch_instances.Phis,
-                                          batch_instances.Lambdas,
-                                          batch_instances.Omegas_norm,
-                                          batch_instances.Phis_norm,
-                                          batch_instances.Lambdas_norm,
-                                          batch_instances.J,
+                action_values = value_net(batch_states.G_torch,
+                                          batch_states.n_nodes,
+                                          batch_states.Omegas,
+                                          batch_states.Phis,
+                                          batch_states.Lambdas,
+                                          batch_states.Omegas_norm,
+                                          batch_states.Phis_norm,
+                                          batch_states.Lambdas_norm,
+                                          batch_states.J,
                                           )
+                # mask the attacked nodes
+                mask_values = batch_states.J.eq(0)[:, 0]
                 action_values = action_values[mask_values]
-                batch = batch[mask_values]
-                # Compute the masks to apply
-                mask_attack = batch_instances.player.eq(1)[:, 0]
-                mask_defend = torch.logical_not(mask_attack)
-                # compute both the max and min of the action values
-                _, id_max = scatter_max(action_values, batch, dim=0)
-                val_max = action_values.gather(0, id_max)
-                _, id_min = scatter_min(action_values, batch, dim=0)
-                val_min = action_values.gather(0, id_min)
-                val_max = val_max[mask_defend]
-                val_min = val_min[mask_attack]
-                values_approx = torch.cat([val_max, val_min])[:, 0]
-                # compute both the max and the min of the targets
-                target_max = batch_instances.target[mask_defend]
-                target_min = batch_instances.target[mask_attack]
-                batch_target = torch.cat([target_max, target_min])[:, 0]
+                # Gather the approximate values
+                approx_values = action_values.gather(0, batch_actions)
+                # compute the masks to apply to the target
+                mask_attack = batch_states.next_player.eq(1)[:, 0]
+                mask_exact = batch_states.next_player.eq(3)[:, 0]
+
+                # Compute the approximate targets
+                with torch.no_grad():
+                    target_values = target_net(batch_afterstates.G_torch,
+                                               batch_afterstates.n_nodes,
+                                               batch_afterstates.Omegas,
+                                               batch_afterstates.Phis,
+                                               batch_afterstates.Lambdas,
+                                               batch_afterstates.Omegas_norm,
+                                               batch_afterstates.Phis_norm,
+                                               batch_afterstates.Lambdas_norm,
+                                               batch_afterstates.J,
+                                               )
+                    batch = batch_afterstates.G_torch.batch
+                    mask_J = batch_afterstates.J.eq(0)[:, 0]
+                    # mask the attacked nodes
+                    batch = batch[mask_J]
+                    target_values = target_values[mask_J]
+                    # Compute the min and max
+                    val_min, _ = scatter_min(target_values, batch, dim=0)
+                    val_max, _ = scatter_max(target_values, batch, dim=0)
+                    # create the target tensor
+                    target = val_max
+                    target[mask_attack] = val_min[mask_attack]
+                    target[mask_exact] = batch_rewards[mask_exact]
+
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
-                loss = torch.sqrt(torch.mean((values_approx - batch_target) ** 2))
+                loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
@@ -1145,7 +1193,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 if count_steps % rate_display == 0:
                     save_models(date_str, dict_args, value_net, optimizer, count_steps)
                     print(
-                        " \n Episode: %2d/%2d" % (episode*size_batch_instances, n_episode),
+                        " \n Episode: %2d/%2d" % (episode*batch_size, n_episode),
                         " \n Loss of the current value net: %f" % float(loss),
                         " \n Losses on test set : ", losses_test,
                     )
