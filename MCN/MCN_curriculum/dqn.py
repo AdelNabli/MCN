@@ -1056,6 +1056,10 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         while env.Budget >= 1:
             last_states = current_states
             current_states = env.list_instance_torch
+            print('Budget', env.Budget)
+            print('Omega', env.Omega)
+            print('Phi', env.Phi)
+            print('Lambda', env.Lambda)
             print('error sample action batch')
             action = sample_action_batch_dqn(target_net,
                                              env.player,
@@ -1119,7 +1123,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
                 print('error action values')
-                print('J : ', batch_states.J)
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
                                           batch_states.Omegas,
