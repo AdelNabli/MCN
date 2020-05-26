@@ -1208,7 +1208,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Update the parameters of the Value_net
                 print('error backward')
                 loss.backward()
-                print('erro step')
+                print('error step')
                 optimizer.step()
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
@@ -1223,6 +1223,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Update the tensorboard
                 writer.add_scalar("Loss", float(loss), count_steps)
                 count_steps += 1
+                print('COUNT STEPS:', count_steps)
 
                 # Update the target net
                 if count_steps % update_target == 0:
