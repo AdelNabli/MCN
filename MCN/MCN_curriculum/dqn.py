@@ -1076,8 +1076,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             last_rewards = current_rewards
             current_rewards = env.rewards
             cpt_budget += 1
-            if env.Budget == 0:
-                print('rewards', current_rewards)
 
             # if we have the couples (state, afterstates) available
             if cpt_budget > 1:
@@ -1092,7 +1090,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                     replay_memory_afterstates[count_memory % size_memory] = current_states[k]
                     replay_memory_rewards[count_memory % size_memory] = last_rewards[k]
                     count_memory += 1
-            # If we are in the next step, we push to memory the end rewards
+            # If we are in the last step, we push to memory the end rewards
             if env.Budget == 0 and cpt_budget > 1:
                 for k in range(batch_size):
                     if len(replay_memory_states) < size_memory:
@@ -1171,7 +1169,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                                batch_afterstates.Phis_norm,
                                                batch_afterstates.Lambdas_norm,
                                                batch_afterstates.J,
-                                               )
+                                               ).detach()
                     test = torch.sum(torch.isnan(batch_afterstates.G_torch.x))
                     test += torch.sum(torch.isnan(batch_afterstates.n_nodes))
                     test += torch.sum(torch.isnan(batch_afterstates.Omegas))
