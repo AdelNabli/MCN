@@ -51,7 +51,7 @@ def collate_fn(list_instances):
     instances_collated.target = torch.cat([instances.target for instances in list_instances])
     # try if there are 'players' in the instances
     try:
-        instances_collated.next_player = torch.cat([instances.player for instances in list_instances])
+        instances_collated.next_player = torch.cat([instances.next_player for instances in list_instances])
     except:
         instances_collated.next_player = None
 
