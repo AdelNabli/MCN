@@ -1056,6 +1056,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         while env.Budget >= 1:
             last_states = current_states
             current_states = env.list_instance_torch
+            print('error sample action batch')
             action = sample_action_batch_dqn(target_net,
                                              env.player,
                                              env.batch_instance_torch,
@@ -1117,6 +1118,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1]).to(device)
                 batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
+                print('error action values')
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
                                           batch_states.Omegas,
@@ -1152,6 +1154,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
 
                 # Compute the approximate targets
                 with torch.no_grad():
+                    print('error target net')
                     target_values = target_net(batch_afterstates.G_torch,
                                                batch_afterstates.n_nodes,
                                                batch_afterstates.Omegas,
@@ -1198,13 +1201,16 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
                 print('loss', loss)
                 # Update the parameters of the Value_net
+                print('error backward')
                 loss.backward()
+                print('erro step')
                 optimizer.step()
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
                 # Check the test losses every 20 steps
                 if count_steps % 20 == 0:
+                    print('error loss test')
                     losses_test = compute_loss_test_dqn(test_set_generators, list_players, value_net=value_net_bis)
                 for k in range(len(losses_test)):
                     name_loss = 'Loss test budget ' + str(k+1)
