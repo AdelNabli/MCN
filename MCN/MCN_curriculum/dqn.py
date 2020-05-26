@@ -1079,6 +1079,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
 
             # if we have the couples (state, afterstates) available
             if cpt_budget > 1:
+                n_visited = 0
                 for k in range(batch_size):
                     if len(replay_memory_states) < size_memory:
                         replay_memory_states.append(None)
@@ -1086,12 +1087,15 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                         replay_memory_actions.append(None)
                         replay_memory_rewards.append(None)
                     replay_memory_states[count_memory % size_memory] = last_states[k]
-                    replay_memory_actions[count_memory % size_memory] = last_actions[k]
                     replay_memory_afterstates[count_memory % size_memory] = current_states[k]
                     replay_memory_rewards[count_memory % size_memory] = last_rewards[k]
+                    n_free = int(torch.sum(last_states[k].J.eq(0)[:,0]))
+                    replay_memory_actions[count_memory % size_memory] = last_actions[k] - n_visited
+                    n_visited += n_free
                     count_memory += 1
             # If we are in the last step, we push to memory the end rewards
             if env.Budget == 0 and cpt_budget > 1:
+                n_visited = 0
                 for k in range(batch_size):
                     if len(replay_memory_states) < size_memory:
                         replay_memory_states.append(None)
@@ -1099,10 +1103,12 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                         replay_memory_actions.append(None)
                         replay_memory_rewards.append(None)
                     replay_memory_states[count_memory % size_memory] = current_states[k]
-                    replay_memory_actions[count_memory % size_memory] = current_actions[k]
                     # doesn't matter what we put in the afterstates here
                     replay_memory_afterstates[count_memory % size_memory] = current_states[k]
                     replay_memory_rewards[count_memory % size_memory] = current_rewards[k]
+                    n_free = int(torch.sum(current_states[k].J.eq(0)[:, 0]))
+                    replay_memory_actions[count_memory % size_memory] = current_actions[k] - n_visited
+                    n_visited += n_free
                     count_memory += 1
 
 
@@ -1117,10 +1123,17 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 list_afterstates = [replay_memory_afterstates[k] for k in id_batch]
                 list_actions = [replay_memory_actions[k] for k in id_batch]
                 list_rewards = [replay_memory_rewards[k] for k in id_batch]
+                # recover the actions id in the batch
+                n_visited = 0
+                list_actions_new = []
+                for k in range(len(list_actions)):
+                    n_free = int(torch.sum(list_states[k].J.eq(0)[:,0]))
+                    list_actions_new.append(list_actions[k]+n_visited)
+                    n_visited += n_free
                 # create the tensors
                 batch_states = collate_fn(list_states)
                 batch_afterstates = collate_fn(list_afterstates)
-                batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1]).to(device)
+                batch_actions = torch.tensor(list_actions_new, dtype=torch.long).view([len(list_actions), 1]).to(device)
                 batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
                 print('error action values')

@@ -328,7 +328,7 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
             Phi_attacked = np.random.randint(1, Phi_max + 1, size=batch_size)
             # add some random "already defended" nodes
             # that we will remove from the graph
-            Lambda_del = np.random.randint(0, Lambda_max - Lambda + 1, size=batch_size)
+            Lambda_del = np.random.randint(0, Lambda_max - Budget_target + 1, size=batch_size)
             Omega_del = np.random.randint(0, Omega_max + 1, size=batch_size)
         # if the target net is learning the attack values
         elif Budget_target <= Phi_max + Lambda_max:
@@ -351,7 +351,7 @@ def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_mi
             # add some random "already defended" nodes
             # that we will remove from the graph
             Lambda_del = np.zeros(batch_size)
-            Omega_del = np.random.randint(0, Omega_max - Omega + 1, size=batch_size)
+            Omega_del = np.random.randint(0, Omega_max - Omega[0] + 1, size=batch_size)
 
 
     # random number of nodes
