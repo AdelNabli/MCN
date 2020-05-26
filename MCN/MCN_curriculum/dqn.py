@@ -1167,7 +1167,10 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
+                print('approx value', approx_values, approx_values.size())
+                print('target', target, target.size())
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
+                print('loss', loss)
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
