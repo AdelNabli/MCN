@@ -933,7 +933,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                  n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
                  w_max=1, directed=False,
                  num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                 exact_protection=False, rate_display=200, batch_unroll=None):
+                 exact_protection=False, rate_display=200):
 
     """Train a neural network to solve the MCN problem either using Monte Carlo samples"""
 
@@ -1117,8 +1117,8 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # create the tensors
                 batch_states = collate_fn(list_states)
                 batch_afterstates = collate_fn(list_afterstates)
-                batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1])
-                batch_rewards = torch.tensor(list_rewards, dtype=torch.long).view([len(list_rewards), 1])
+                batch_actions = torch.tensor(list_actions, dtype=torch.long).view([len(list_actions), 1]).to(device)
+                batch_rewards = torch.tensor(list_rewards, dtype=torch.long).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
