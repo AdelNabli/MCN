@@ -1056,20 +1056,14 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
         while env.Budget >= 1:
             last_states = current_states
             current_states = env.list_instance_torch
-            print('Budget', env.Budget)
-            print('Omega', env.Omega)
-            print('Phi', env.Phi)
-            print('Lambda', env.Lambda)
-            print('error sample action batch')
-            action = take_action_deterministic_batch_dqn(value_net, env.player, env.batch_instance_torch)
-            #action = sample_action_batch_dqn(value_net,
-                                             #env.player,
-                                             #env.batch_instance_torch,
-                                             #eps_end,
-                                             #eps_decay,
-                                             #eps_start,
-                                             #count_steps
-                                             #)
+            action = sample_action_batch_dqn(value_net,
+                                             env.player,
+                                             env.batch_instance_torch,
+                                             eps_end,
+                                             eps_decay,
+                                             eps_start,
+                                             count_steps
+                                             )
             env.step(action)
             last_actions = current_actions
             current_actions = action
@@ -1136,7 +1130,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 batch_actions = torch.tensor(list_actions_new, dtype=torch.long).view([len(list_actions), 1]).to(device)
                 batch_rewards = torch.tensor(list_rewards, dtype=torch.float).view([len(list_rewards), 1]).to(device)
                 # Compute the approximate values
-                print('error action values')
                 action_values = value_net(batch_states.G_torch,
                                           batch_states.n_nodes,
                                           batch_states.Omegas,
@@ -1147,20 +1140,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                           batch_states.Lambdas_norm,
                                           batch_states.J,
                                           )
-                test = torch.sum(torch.isnan(batch_states.G_torch.x))
-                test += torch.sum(torch.isnan(batch_states.n_nodes))
-                test +=torch.sum(torch.isnan(batch_states.Omegas))
-                test +=torch.sum(torch.isnan(batch_states.Phis))
-                test +=torch.sum(torch.isnan(batch_states.Lambdas))
-                test +=torch.sum(torch.isnan(batch_states.J))
-                
-                if test > 0 :
-                    print('G_torch', batch_states.G_torch.x)
-                    print('n_nodes:', batch_states.n_nodes)
-                    print('Omegas:', batch_states.Omegas)
-                    print('Phis', batch_states.Phis)
-                    print('Lambdas', batch_states.Lambdas)
-                    print('J', batch_states.J)
                 # mask the attacked nodes
                 mask_values = batch_states.J.eq(0)[:, 0]
                 action_values = action_values[mask_values]
@@ -1172,7 +1151,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
 
                 # Compute the approximate targets
                 with torch.no_grad():
-                    print('error target net')
                     target_values = target_net(batch_afterstates.G_torch,
                                                batch_afterstates.n_nodes,
                                                batch_afterstates.Omegas,
@@ -1183,20 +1161,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                                                batch_afterstates.Lambdas_norm,
                                                batch_afterstates.J,
                                                ).detach()
-                    test = torch.sum(torch.isnan(batch_afterstates.G_torch.x))
-                    test += torch.sum(torch.isnan(batch_afterstates.n_nodes))
-                    test += torch.sum(torch.isnan(batch_afterstates.Omegas))
-                    test += torch.sum(torch.isnan(batch_afterstates.Phis))
-                    test += torch.sum(torch.isnan(batch_afterstates.Lambdas))
-                    test += torch.sum(torch.isnan(batch_afterstates.J))
-
-                    if test > 0:
-                        print('G_torch', batch_afterstates.G_torch.x)
-                        print('n_nodes:', batch_afterstates.n_nodes)
-                        print('Omegas:', batch_afterstates.Omegas)
-                        print('Phis', batch_afterstates.Phis)
-                        print('Lambdas', batch_afterstates.Lambdas)
-                        print('J', batch_afterstates.J)
                         
                     batch = batch_afterstates.G_torch.batch
                     mask_J = batch_afterstates.J.eq(0)[:, 0]
@@ -1214,21 +1178,15 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
-                print('approx value', approx_values.size())
-                print('target', target.size())
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
-                print('loss', loss)
                 # Update the parameters of the Value_net
-                print('error backward')
                 loss.backward()
-                print('error step')
                 optimizer.step()
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
                 # Check the test losses every 20 steps
                 if count_steps % 20 == 0:
-                    print('error loss test')
                     losses_test = compute_loss_test_dqn(test_set_generators, list_players, value_net=value_net_bis)
                 for k in range(len(losses_test)):
                     name_loss = 'Loss test budget ' + str(k+1)
@@ -1236,7 +1194,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 # Update the tensorboard
                 writer.add_scalar("Loss", float(loss), count_steps)
                 count_steps += 1
-                print('COUNT STEPS:', count_steps)
 
                 # Update the target net
                 if count_steps % update_target == 0:
