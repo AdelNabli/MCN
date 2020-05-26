@@ -1061,14 +1061,15 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             print('Phi', env.Phi)
             print('Lambda', env.Lambda)
             print('error sample action batch')
-            action = sample_action_batch_dqn(target_net,
-                                             env.player,
-                                             env.batch_instance_torch,
-                                             eps_end,
-                                             eps_decay,
-                                             eps_start,
-                                             count_steps
-                                             )
+            action = take_action_deterministic_batch_dqn(value_net, env.player, env.batch_instance_torch)
+            #action = sample_action_batch_dqn(value_net,
+                                             #env.player,
+                                             #env.batch_instance_torch,
+                                             #eps_end,
+                                             #eps_decay,
+                                             #eps_start,
+                                             #count_steps
+                                             #)
             env.step(action)
             last_actions = current_actions
             current_actions = action
