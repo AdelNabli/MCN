@@ -1197,6 +1197,9 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 print('target', target.size())
                 loss = torch.sqrt(torch.mean((approx_values - target) ** 2))
                 print('loss', loss)
+                # Update the parameters of the Value_net
+                loss.backward()
+                optimizer.step()
                 # compute the loss on the test set using the value_net_bis
                 value_net_bis.load_state_dict(value_net.state_dict())
                 value_net_bis.eval()
@@ -1206,9 +1209,6 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                 for k in range(len(losses_test)):
                     name_loss = 'Loss test budget ' + str(k+1)
                     writer.add_scalar(name_loss, float(losses_test[k]), count_steps)
-                # Update the parameters of the Value_net
-                loss.backward()
-                optimizer.step()
                 # Update the tensorboard
                 writer.add_scalar("Loss", float(loss), count_steps)
                 count_steps += 1
