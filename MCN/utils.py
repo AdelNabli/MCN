@@ -650,7 +650,7 @@ def get_next_player(Omega, Phi, Lambda):
     return get_player(next_Omega, next_Phi, next_Lambda)
 
 
-def take_action_deterministic(target_net, player, next_player, rewards, next_afterstates, **kwargs):
+def take_action_deterministic(target_net, player, next_player, rewards, next_afterstates, weights, **kwargs):
     """Given the current situation and the player whose turn it is to play,
     decides of the best action to take with respect to the exact or approximate
     values of all of the possible afterstates.
@@ -671,6 +671,8 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
              the reward of each afterstate
     next_afterstates: list of Pytorch Geometric Data objects,
                       list of the possible afterstates
+    weights: list,
+             the weights attributed to each action possible
 
     Returns:
     -------
@@ -695,50 +697,24 @@ def take_action_deterministic(target_net, player, next_player, rewards, next_aft
             G_torch = Batch.from_data_list(next_afterstates).to(device)
             # We compute the target values
             targets = target_net(G_torch, **kwargs)
+
+    weights_tensor = torch.tensor(weights, dtype=torch.float).view(targets.size()).to(device)
+    target_decision = targets + weights_tensor
     # if it's the turn of the attacker
     if player == 1:
         # we take the argmin
-        action = int(targets.argmin())
-        value = float(targets.min())
+        action = int(target_decision.argmin())
     else:
         # we take the argmax
-        action = int(targets.argmax())
-        value = float(targets.max())
+        action = int(target_decision.argmax())
+    value = float(targets[action])
 
     return action, targets, value
 
 
-def take_action_deterministic_batch(target_net, player, next_player, rewards, next_afterstates,
+def take_action_deterministic_batch(target_net, player, next_player, rewards, next_afterstates, weights=None,
                                     id_graphs=None, **kwargs):
-    """Given the current situation and the player whose turn it is to play,
-    decides of the best action to take with respect to the exact or approximate
-    values of all of the possible afterstates.
-
-    Parameters:
-    ----------
-    target_net: Pytorch neural network (module),
-                the value network for the possible afterstates
-    player: int,
-            id of the current player:
-            0 --> vaccinator
-            1 --> attacker
-            2 --> protector
-            3 --> end of the game
-    next_player: int,
-                 id of the next player
-    rewards: float tensor,
-             the reward of each afterstate
-    next_afterstates: list of Pytorch Geometric Data objects,
-                      list of the possible afterstates
-
-    Returns:
-    -------
-    action: int,
-            the id of the optimal afterstate amoung all the ones possible
-    targets: float tensor,
-             the values of each of the possible afterstates
-    value: float,
-           the value of the afterstate chosen with action"""
+    """Take actions in batch"""
 
     if id_graphs is None:
         n_nodes = sum([len(afterstate) for afterstate in next_afterstates])
@@ -757,13 +733,19 @@ def take_action_deterministic_batch(target_net, player, next_player, rewards, ne
             G_torch = Batch.from_data_list(next_afterstates).to(device)
             # We compute the target values
             targets = target_net(G_torch, **kwargs)
+    if weights is not None:
+        weights_tensor = torch.tensor(weights, dtype=torch.float).view(targets.size()).to(device)
+        target_decision = targets + weights_tensor
+    else:
+        target_decision = targets
     # if it's the turn of the attacker
     if player == 1:
         # we take the argmin
-        values, actions = scatter_min(targets, id_graphs, dim=0)
+        _, actions = scatter_min(target_decision, id_graphs, dim=0)
     else:
         # we take the argmax
-        values, actions = scatter_max(targets, id_graphs, dim=0)
+        _, actions = scatter_max(target_decision, id_graphs, dim=0)
+    values = targets[actions[:,0]]
 
     return actions.view(-1).tolist(), targets, values.view(-1).tolist()
 
