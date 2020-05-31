@@ -193,6 +193,17 @@ def compute_all_possible_afterstates(list_instances):
 
     return next_instances, id_graphs
 
+def recover_list_rewards(rewards_tensor, id_graphs, batch_size):
+
+    list_rewards = []
+    for k in range(batch_size):
+
+        mask_k = id_graphs.eq(k)
+        rewards_k = rewards_tensor[mask_k]
+        list_rewards.append(rewards_k)
+
+    return list_rewards
+
 
 def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
 
@@ -220,7 +231,7 @@ def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
             # we take the argmax
             values, actions = scatter_max(action_values, batch, dim=0)
 
-    return actions.view(-1).tolist()
+    return actions.view(-1).tolist(), values
 
 
 def sample_action_batch_dqn(neural_net, player, batch_instances,
@@ -229,7 +240,8 @@ def sample_action_batch_dqn(neural_net, player, batch_instances,
     sample = random.random()
     eps_threshold = eps_end + (eps_start - eps_end) * np.exp(-1. * count_steps / eps_decay)
     if sample > eps_threshold:
-        return take_action_deterministic_batch_dqn(neural_net, player, batch_instances)
+        actions, _ = take_action_deterministic_batch_dqn(neural_net, player, batch_instances)
+        return actions
     else:
         actions = []
         mask_actions = batch_instances.J.eq(0)[:, 0]
@@ -256,6 +268,7 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
     Lambda = list_instances[0].Lambda
     Budget = Omega + Phi + Lambda
     player = get_player(Omega, Phi, Lambda)
+    batch_size = len(list_instances)
     list_afterstates, id_graphs = compute_all_possible_afterstates(list_instances)
     # If there is only 1 of budget,
     # we can solve the instance exactly
@@ -264,62 +277,35 @@ def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_m
         for instance in list_afterstates:
             reward = compute_saved_nodes(instance.G, instance.J)
             rewards_batch.append(reward)
-        rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
-        if player == 1:
-            value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
-        else:
-            value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
-        value = value.view(-1).tolist()
-        return value
     # Else, we need to unroll the experts
     else:
         # Initialize the environment
-        env = EnvironmentDQN(list_instances)
-
-        while env.Budget > 1:
-
-            list_afterstates, id_graphs = compute_all_possible_afterstates(env.batch_instance)
-            env2 = EnvironmentDQN(list_afterstates)
+        env = EnvironmentDQN(list_afterstates)
+        while env.Budget >= 1:
             target_net = get_target_net(
                 list_experts,
-                env2.Omega,
-                env2.Phi,
-                env2.Lambda,
+                env.Omega,
+                env.Phi,
+                env.Lambda,
                 Omega_max,
                 Phi_max,
                 Lambda_max,
             )
-            # Take an action
-            batch_instances = env2.batch_instance_torch
-            with torch.no_grad():
-                # We compute the target values
-                batch = batch_instances.G_torch.batch
-                action_values = target_net(batch_instances.G_torch,
-                                           batch_instances.n_nodes,
-                                           batch_instances.Omegas,
-                                           batch_instances.Phis,
-                                           batch_instances.Lambdas,
-                                           batch_instances.Omegas_norm,
-                                           batch_instances.Phis_norm,
-                                           batch_instances.Lambdas_norm,
-                                           batch_instances.J,
-                                           )
-                # if it's the turn of the attacker
-                if env2.player == 1:
-                    # we take the argmin
-                    values_after, actions_after = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    values_after, actions_after = scatter_max(action_values, batch, dim=0)
-            if env.player == 1:
-                _, actions = scatter_min(values_after, id_graphs, dim=0)
-            else:
-                _, actions = scatter_max(values_after, id_graphs, dim=0)
-            actions = actions.view(-1).tolist()
+            player = env.player
+            batch_instances = env.batch_instance_torch
+            actions, values = take_action_deterministic_batch_dqn(target_net, player, batch_instances)
             env.step(actions)
-        if env.Budget == 1:
-            new_list_instances = env.batch_instance
-            return solve_mcn_heuristic_batch_dqn(list_experts, new_list_instances, Omega_max, Phi_max, Lambda_max)
+        rewards_batch = env.rewards
+
+    rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
+    if player == 1:
+        value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
+    else:
+        value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
+    value = value.view(-1).tolist()
+    list_rewards = recover_list_rewards(rewards_batch, id_graphs, batch_size)
+    return value, list_rewards
+
 
 
 def load_create_datasets_dqn(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
@@ -382,7 +368,7 @@ def load_create_datasets_dqn(size_train_data, size_val_data, batch_size, num_wor
             directed,
         )
         # Solves the mcn problem for the batch using the heuristic
-        values = solve_mcn_heuristic_batch_dqn(
+        values, rewards = solve_mcn_heuristic_batch_dqn(
             list_experts,
             list_instances,
             Omega_max,
@@ -390,9 +376,10 @@ def load_create_datasets_dqn(size_train_data, size_val_data, batch_size, num_wor
             Lambda_max,
         )
         for i in range(batch_instances):
-            list_instances[i].value = values[i]
+            #list_instances[i].value = values[i]
             # Transform the instance to a InstanceTorch object
             instance_torch = instance_to_torch(list_instances[i])
+            instance_torch.target = rewards[i]
             # add the instance to the data
             data.append(instance_torch)
 
@@ -722,15 +709,7 @@ class TargetExpertsDQN(object):
                                                batch_instances.J,
                                            )
                 action_values = action_values[mask_values]
-                batch = batch[mask_values]
-                # if it's the turn of the attacker
-                if player == 1:
-                    # we take the argmin
-                    values, actions = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    values, actions = scatter_max(action_values, batch, dim=0)
-                val_approx.append(values)
+                val_approx.append(action_values)
                 target.append(batch_instances.target)
             # Compute the loss
             target = torch.cat(target)
@@ -880,19 +859,10 @@ def train_dqn(batch_size, size_train_data, size_val_data, size_test_data, lr, be
                                           batch_instances.J,
                                           )
                 action_values = action_values[mask_values]
-                batch = batch[mask_values]
-                # if it's the turn of the attacker
-                if player == 1:
-                    # we take the argmin
-                    _, actions = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    _ , actions = scatter_max(action_values, batch, dim=0)
-                values_approx = action_values.gather(0, actions)
                 # Init the optimizer
                 optimizer.zero_grad()
                 # Compute the loss of the batch
-                loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
+                loss = torch.sqrt(torch.mean((action_values[:, 0] - batch_instances.target[:, 0]) ** 2))
                 # Compute the loss on the Validation set
                 if count % update_experts == 0:
                     targets_experts.test_update_target_nets(value_net, val_generator, test_set_generators)
@@ -933,7 +903,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                  n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
                  w_max=1, directed=False,
                  num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                 exact_protection=False, rate_display=200):
+                 exact_protection=False, rate_display=200, batch_unroll=128):
 
     """Train a neural network to solve the MCN problem either using Monte Carlo samples"""
 
@@ -1032,7 +1002,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
     for episode in tqdm(range(n_episode)):
         # Sample a random batch of instances from where to begin
         list_instances = generate_random_batch_instance(
-            batch_size,
+            batch_unroll,
             n_free_min,
             n_free_max,
             d_edge_min,
@@ -1074,7 +1044,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             # if we have the couples (state, afterstates) available
             if cpt_budget > 1:
                 n_visited = 0
-                for k in range(batch_size):
+                for k in range(batch_unroll):
                     if len(replay_memory_states) < size_memory:
                         replay_memory_states.append(None)
                         replay_memory_afterstates.append(None)
@@ -1090,7 +1060,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
             # If we are in the last step, we push to memory the end rewards
             if env.Budget == 0 and cpt_budget > 1:
                 n_visited = 0
-                for k in range(batch_size):
+                for k in range(batch_unroll):
                     if len(replay_memory_states) < size_memory:
                         replay_memory_states.append(None)
                         replay_memory_afterstates.append(None)
