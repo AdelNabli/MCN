@@ -1,4 +1,3 @@
-import networkx as nx
 import numpy as np
 from MCN.MCN_curriculum.environment import Environment
 from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player, Instance

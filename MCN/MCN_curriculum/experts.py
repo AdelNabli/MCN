@@ -4,7 +4,7 @@ import os
 import pickle
 from torch.utils.data import DataLoader
 from MCN.utils import load_saved_experts, compute_loss_test
-from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.MCN_curriculum.neural_networks import ValueNet
 from MCN.MCN_curriculum.data import MCNDataset, collate_fn
 
 

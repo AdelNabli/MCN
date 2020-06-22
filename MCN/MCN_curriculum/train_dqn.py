@@ -1,16 +1,15 @@
 import os
 import pickle
 from tqdm import tqdm
-import math
 import random
 import numpy as np
-from MCN.MCN_curriculum.value_nn import DQN
+from MCN.MCN_curriculum.neural_networks import DQN
 from MCN.solve_mcn import solve_mcn
 import torch
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from datetime import datetime
-from torch_scatter import scatter_min, scatter_max, scatter
+from torch_scatter import scatter_min, scatter_max
 from MCN.MCN_curriculum.data import collate_fn, MCNDataset, DataLoader
 from MCN.utils import (
     new_graph,
@@ -19,8 +18,6 @@ from MCN.utils import (
     Instance,
     InstanceTorch,
     instance_to_torch,
-    get_target_net,
-    load_saved_experts,
     generate_random_batch_instance,
     generate_random_instance,
     save_models,
@@ -142,58 +139,6 @@ class EnvironmentDQN(object):
             self.next_player = get_player(self.next_Omega, self.next_Phi, self.next_Lambda)
 
 
-def get_next_budgets(Omega, Phi, Lambda):
-    """Compute the next triplet of budgets given the current one
-                and the player whose turn it is to play"""
-
-    # Init the variables
-    next_Omega = Omega
-    next_Phi = Phi
-    next_Lambda = Lambda
-    player = get_player(Omega, Phi,Lambda)
-    # Update the one to be updated
-    if player == 0:
-        next_Omega = Omega - 1
-    elif player == 1:
-        next_Phi = Phi - 1
-    elif player == 2:
-        next_Lambda = Lambda - 1
-
-    return next_Omega, next_Phi, next_Lambda
-
-
-def compute_all_possible_afterstates(list_instances):
-    # Init the variable
-    next_instances = []
-    # Get the current budget and the player whose turn it is to play
-    Omega = list_instances[0].Omega
-    Phi = list_instances[0].Phi
-    Lambda = list_instances[0].Lambda
-    Budget = Omega + Phi + Lambda
-    player = get_player(Omega, Phi, Lambda)
-    next_Omega, next_Phi, next_Lambda = get_next_budgets(Omega, Phi, Lambda)
-    batch_size = len(list_instances)
-    free_nodes = [[x for x in list_instances[k].G.nodes() if x not in list_instances[k].J] for k in
-                  range(batch_size)]
-    id_graphs = torch.tensor(
-        [k for k in range(batch_size) for i in range(len(free_nodes[k]))],
-        dtype=torch.int64).to(device)
-
-    for k in range(batch_size):
-        for node in free_nodes[k]:
-            G_k = list_instances[k].G.copy()
-            J_k = list_instances[k].J.copy()
-            if player == 1:
-                J_k += [node]
-            else:
-                G_k, mapping = new_graph(G_k, node)
-                J_k = [mapping[j] for j in J_k]
-            new_instance = Instance(G_k, next_Omega, next_Phi, next_Lambda, J_k, 0)
-            next_instances.append(new_instance)
-
-    return next_instances, id_graphs
-
-
 def take_action_deterministic_batch_dqn(target_net, player, batch_instances):
 
     with torch.no_grad():
@@ -243,216 +188,6 @@ def sample_action_batch_dqn(neural_net, player, batch_instances,
             actions.append(random_action)
 
         return actions
-
-
-def solve_mcn_heuristic_batch_dqn(list_experts, list_instances, Omega_max, Phi_max, Lambda_max):
-
-    """Given the list of target nets, an instance of the MCN problem and the maximum budgets
-    allowed, solves the MCN problem using the list of experts"""
-
-    # Get the current budget and the player whose turn it is to play
-    Omega = list_instances[0].Omega
-    Phi = list_instances[0].Phi
-    Lambda = list_instances[0].Lambda
-    Budget = Omega + Phi + Lambda
-    player = get_player(Omega, Phi, Lambda)
-    next_Omega, next_Phi, next_Lambda = get_next_budgets(Omega, Phi, Lambda)
-    next_player = get_player(next_Omega, next_Phi, next_Lambda)
-    list_afterstates, id_graphs = compute_all_possible_afterstates(list_instances)
-    # If there is only 1 of budget,
-    # we can solve the instance exactly
-    if Budget == 1:
-        rewards_batch = []
-        for instance in list_afterstates:
-            reward = compute_saved_nodes(instance.G, instance.J)
-            rewards_batch.append(reward)
-        rewards_batch = torch.tensor(rewards_batch, dtype=torch.float).view([len(rewards_batch), 1]).to(device)
-        if player == 1:
-            value, _ = scatter_min(rewards_batch, id_graphs, dim=0)
-        else:
-            value, _ = scatter_max(rewards_batch, id_graphs, dim=0)
-        value = value.view(-1).tolist()
-        return value
-    # Else, we need to unroll the experts
-    else:
-        target_net = get_target_net(
-            list_experts,
-            Omega,
-            Phi,
-            Lambda,
-            Omega_max,
-            Phi_max,
-            Lambda_max,
-        )
-        # initialize a list of instance torch
-        after_instance_torch = []
-        # transform the list of instances to a list of instance torch
-        for instance in list_afterstates:
-            instance_torch = instance_to_torch(instance)
-            after_instance_torch.append(instance_torch)
-        # create a proper batch from the list
-        after_instance_torch = collate_fn(after_instance_torch)
-        with torch.no_grad():
-            batch = after_instance_torch.G_torch.batch
-            mask_values = after_instance_torch.J.eq(0)[:, 0]
-            action_values = target_net(after_instance_torch.G_torch,
-                                       after_instance_torch.n_nodes,
-                                       after_instance_torch.Omegas,
-                                       after_instance_torch.Phis,
-                                       after_instance_torch.Lambdas,
-                                       after_instance_torch.Omegas_norm,
-                                       after_instance_torch.Phis_norm,
-                                       after_instance_torch.Lambdas_norm,
-                                       after_instance_torch.J,
-                                       )
-            action_values = action_values[mask_values]
-            batch = batch[mask_values]
-            # if it's the turn of the attacker
-            if next_player == 1:
-                # we take the argmin
-                values_after, _ = scatter_min(action_values, batch, dim=0)
-            else:
-                # we take the argmax
-                values_after, _ = scatter_max(action_values, batch, dim=0)
-
-            if player == 1:
-                _, actions_after = scatter_min(values_after, id_graphs, dim=0)
-            else:
-                _, actions_after = scatter_max(values_after, id_graphs, dim=0)
-
-            actions_after = actions_after.view(-1).tolist()
-        # gather the afterstates selected
-        selected_afterstates = [list_afterstates[k] for k in actions_after]
-        # Initialize the environment
-        env = EnvironmentDQN(selected_afterstates)
-        while env.Budget >= 1:
-            target_net = get_target_net(
-                list_experts,
-                env.Omega,
-                env.Phi,
-                env.Lambda,
-                Omega_max,
-                Phi_max,
-                Lambda_max,
-            )
-            actions = take_action_deterministic_batch_dqn(target_net, env.player, env.batch_instance_torch)
-            env.step(actions)
-            rewards_batch = env.rewards
-        return rewards_batch
-
-
-def load_create_datasets_dqn(size_train_data, size_val_data, batch_size, num_workers, n_free_min, n_free_max,
-                             d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted, w_max, directed, Budget,
-                             list_experts, path_data, solve_exact=False, exact_protection=False, batch_unroll=None):
-
-    """Create or load the training and validation sets.
-    Return two dataloaders to access both datasets.
-    Dump the datasets in a .gz file in data/train_data and data/val_data"""
-
-    print("\n==========================================================================")
-    print("Creating or Loading the Training and Validation sets for Budget = %2d \n" % Budget)
-
-    # Initialize the dataset and number of instances to generate
-    data = []
-    len_data_train = 0
-    total_size = size_train_data + size_val_data
-    # If there is a data folder
-    if path_data is not None:
-        # we check whether there is already a training set
-        # corresponding to the budget we want
-        path_train_data_budget = os.path.join(path_data, 'train_data', 'data_'+str(Budget)+'.gz')
-        # if it's the case, we load it
-        if os.path.exists(path_train_data_budget):
-            data += pickle.load(open(path_train_data_budget, "rb"))
-            len_data_train = len(data)
-        # similarly, we check whether there is a validation set available
-        path_val_data_budget = os.path.join(path_data, 'val_data', 'data_' + str(Budget) + '.gz')
-        # if it's the case, we load it
-        if os.path.exists(path_val_data_budget):
-            data += pickle.load(open(path_val_data_budget, "rb"))
-
-    # Update the number of instances that needs to be created
-    total_size = total_size - len(data)
-    # We create the instances that are currently lacking in the datasets
-    # If we need the exact protection, we solve one instance at a time
-    # Compute the number of batches necessary to fill the memory
-    if batch_unroll is None:
-        min_size_instance = n_free_min + Budget
-        max_size_instance = n_free_max + Budget
-        mean_size_instance = min_size_instance + (max_size_instance - min_size_instance) // 2
-        batch_instances = batch_size // mean_size_instance
-    else:
-        batch_instances = batch_unroll
-    n_iterations = total_size // batch_instances + 1 * (total_size % batch_instances > 0)
-    for k in tqdm(range(n_iterations)):
-        # Sample a batch of random instance
-        list_instances = generate_random_batch_instance(
-            batch_instances,
-            n_free_min,
-            n_free_max,
-            d_edge_min,
-            d_edge_max,
-            Omega_max,
-            Phi_max,
-            Lambda_max,
-            Budget,
-            weighted,
-            w_max,
-            directed,
-        )
-        # Solves the mcn problem for the batch using the heuristic
-        values = solve_mcn_heuristic_batch_dqn(
-            list_experts,
-            list_instances,
-            Omega_max,
-            Phi_max,
-            Lambda_max,
-        )
-        for i in range(batch_instances):
-            list_instances[i].value = values[i]
-            # Transform the instance to a InstanceTorch object
-            instance_torch = instance_to_torch(list_instances[i])
-            # add the instance to the data
-            data.append(instance_torch)
-
-
-    # Save the data if there is a change in the dataset
-    if len_data_train != size_train_data or total_size > 0:
-        if path_data is None:
-            path_data = 'data'
-        if not os.path.exists(path_data):
-            os.mkdir(path_data)
-        path_train = os.path.join(path_data, 'train_data')
-        if not os.path.exists(path_train):
-            os.mkdir(path_train)
-        path_val = os.path.join(path_data, 'val_data')
-        if not os.path.exists(path_val):
-            os.mkdir(path_val)
-        path_train_data_budget = os.path.join(path_train, 'data_' + str(Budget) + '.gz')
-        path_val_data_budget = os.path.join(path_val, 'data_' + str(Budget) + '.gz')
-        pickle.dump(data[:size_train_data], open(path_train_data_budget, "wb"))
-        pickle.dump(data[size_train_data:], open(path_val_data_budget, "wb"))
-        print("\nSaved datasets in " + path_data, '\n')
-
-    # Create the datasets used during training and validation
-    val_data = MCNDataset(data[size_train_data:size_train_data + size_val_data])
-    train_data = MCNDataset(data[:size_train_data])
-    train_loader = DataLoader(
-        train_data,
-        collate_fn=collate_fn,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-    )
-    val_loader = DataLoader(
-        val_data,
-        collate_fn=collate_fn,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-    )
-
-    return train_loader, val_loader
 
 
 def compute_loss_test_dqn(test_set_generators, list_players, value_net=None, list_experts=None, id_to_test=None):
@@ -626,335 +361,15 @@ def load_create_test_set_dqn(n_free_min, n_free_max, d_edge_min, d_edge_max, Ome
     return test_set_generators
 
 
-class TargetExpertsDQN(object):
-
-    """Object containing the target nets and updating them during learning"""
-
-    def __init__(self, dim_input, dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, K, alpha,
-                 weighted, Omega_max, Phi_max, Lambda_max, path_experts, path_data, exact_protection):
-
-        # Initialize the parameters of the neural network
-        self.dim_input = dim_input
-        self.dim_embedding = dim_embedding
-        self.dim_values = dim_values
-        self.dim_hidden = dim_hidden
-        self.n_att_layers = n_att_layers
-        self.n_pool = n_pool
-        self.n_heads = n_heads
-        self.K = K
-        self.alpha = alpha
-        self.weighted = weighted
-        # Initialize the parameters of the list of experts
-        self.n_max = Omega_max + Phi_max + Lambda_max
-        self.Lambda_max = Lambda_max
-        self.list_target_nets = [None] * (self.n_max)
-        self.losses_validation_sets = [math.inf] * (self.n_max)
-        self.losses_test_set = [0] * (self.n_max)
-        self.loss_value_net = math.inf
-        self.Budget_target = 1
-        self.list_players = [2]*Lambda_max + [1]*Phi_max + [0]*Omega_max
-        # If use the exact algorithm for protection, update the parameters
-        self.exact_protection = exact_protection
-        if exact_protection:
-            self.losses_validation_sets[:Lambda_max] = [0] * Lambda_max
-            self.Budget_target = Lambda_max + 1
-
-        self.resume_training(path_experts, path_data)
-
-    def resume_training(self, path_experts, path_data):
-
-        """Load the targets nets that are already available"""
-
-        # If pre-trained experts are available
-        if path_experts is not None:
-            # load them
-            list_trained_experts = load_saved_experts(path_experts)
-            Budget_trained = len(list_trained_experts)
-            # update the TargetExperts object
-            self.list_target_nets[:Budget_trained] = list_trained_experts
-
-            # If there is a data folder
-            if path_data is not None:
-                Budget_begin = 1 + self.exact_protection * self.Lambda_max
-                # for every budget already trained
-                for Budget in range(Budget_begin, Budget_trained + 1):
-                    path_val_data_budget = os.path.join(path_data, 'val_data', 'data_' + str(Budget) + '.gz')
-                    # we check whether there is a validation set available
-                    if os.path.exists(path_val_data_budget):
-                        # if it's the case, we load it
-                        val_data = pickle.load(open(path_val_data_budget, "rb"))
-                        val_data = MCNDataset(val_data)
-                        val_loader = DataLoader(
-                            val_data,
-                            collate_fn=collate_fn,
-                            batch_size=128,
-                            shuffle=True,
-                            num_workers=0,
-                        )
-                        # then, we test the target net on this validation set
-                        self.Budget_target = Budget
-                        self.test_update_target_nets(self.list_target_nets[Budget - 1], val_loader)
-
-            self.Budget_target = Budget_trained + 1
-
-    def test_update_target_nets(self, value_net, val_generator, test_generator=None):
-
-        """Test the current value net against the saved expert on the current validation set
-        and keep the best of both as the current target net"""
-
-        # Create a target net from the current value net
-        new_target_net = DQN(
-            dim_input=self.dim_input,
-            dim_embedding=self.dim_embedding,
-            dim_values=self.dim_values,
-            dim_hidden=self.dim_hidden,
-            n_heads=self.n_heads,
-            n_att_layers=self.n_att_layers,
-            n_pool=self.n_pool,
-            K=self.K,
-            alpha=self.alpha,
-            p=0,
-            weighted=self.weighted,
-        ).to(device)
-        new_target_net.load_state_dict(value_net.state_dict())
-        new_target_net.eval()
-        # init the values approx and the target
-        target = []
-        val_approx = []
-        id_slot = self.Budget_target - 1
-        player = self.list_players[id_slot]
-        with torch.no_grad():
-            # Compute the approximate values given
-            # by the current value net on the validation set
-            # for every batch
-            for i_batch, batch_instances in enumerate(val_generator):
-                batch = batch_instances.G_torch.batch
-                mask_values = batch_instances.J.eq(0)[:, 0]
-                action_values = new_target_net(batch_instances.G_torch,
-                                               batch_instances.n_nodes,
-                                               batch_instances.Omegas,
-                                               batch_instances.Phis,
-                                               batch_instances.Lambdas,
-                                               batch_instances.Omegas_norm,
-                                               batch_instances.Phis_norm,
-                                               batch_instances.Lambdas_norm,
-                                               batch_instances.J,
-                                           )
-                action_values = action_values[mask_values]
-                batch = batch[mask_values]
-                # if it's the turn of the attacker
-                if player == 1:
-                    # we take the argmin
-                    values, actions = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    values, actions = scatter_max(action_values, batch, dim=0)
-                val_approx.append(values)
-                target.append(batch_instances.target)
-            # Compute the loss
-            target = torch.cat(target)
-            val_approx = torch.cat(val_approx)
-            loss_value_net = float(torch.sqrt(torch.mean((val_approx[:, 0] - target[:, 0]) ** 2)))
-            self.loss_value_net = loss_value_net
-        # If the current loss is less than the best loss so far
-        if loss_value_net < self.losses_validation_sets[id_slot]:
-            # we update both the current target net and loss
-            self.list_target_nets[id_slot] = new_target_net
-            self.losses_validation_sets[id_slot] = loss_value_net
-            if test_generator is not None:
-                self.losses_test_set[id_slot] = compute_loss_test_dqn(
-                    test_generator,
-                    self.list_players,
-                    list_experts=self.list_target_nets,
-                    id_to_test=id_slot,
-                )[0]
-
-
-def train_dqn(batch_size, size_train_data, size_val_data, size_test_data, lr, betas, n_epoch, update_experts,
+def train_dqn(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
+              eps_end, eps_decay, eps_start,
               dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max,
-              weighted, w_max=1, directed=False,
-              num_workers=0, path_experts=None, path_data=None, resume_training=False, path_train="",
-              path_test_data=None, exact_protection=False, n_epoch_already_trained=0, batch_unroll=None):
+              n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
+              w_max=1, directed=False,
+              num_workers=0, resume_training=False, path_train="", path_test_data=None,
+              exact_protection=False, rate_display=200, batch_unroll=128):
 
-    # Gather the hyperparameters
-    dict_args = locals()
-    # Gather the date as a string
-    date_str = (
-            datetime.now().strftime('%b')
-            + str(datetime.now().day)
-            + "_"
-            + str(datetime.now().hour)
-            + "-"
-            + str(datetime.now().minute)
-            + "-"
-            + str(datetime.now().second)
-    )
-    # Tensorboard init
-    writer = SummaryWriter()
-    # Init the step count
-    count = 0
-    # Compute n_max
-    n_max = n_free_max + Omega_max + Phi_max + Lambda_max
-    # Initialize the Value neural network
-    value_net = DQN(
-        dim_input=5,
-        dim_embedding=dim_embedding,
-        dim_values=dim_values,
-        dim_hidden=dim_hidden,
-        n_heads=n_heads,
-        n_att_layers=n_att_layers,
-        n_pool=n_pool,
-        K=n_max,
-        alpha=alpha,
-        p=p,
-        weighted=weighted,
-    ).to(device)
-    # Initialize the pool of experts (target nets)
-    targets_experts = TargetExpertsDQN(
-        dim_input=5,
-        dim_embedding=dim_embedding,
-        dim_values=dim_values,
-        dim_hidden=dim_hidden,
-        n_heads=n_heads,
-        n_att_layers=n_att_layers,
-        n_pool=n_pool,
-        K=n_max,
-        alpha=alpha,
-        weighted=weighted,
-        Omega_max=Omega_max,
-        Phi_max=Phi_max,
-        Lambda_max=Lambda_max,
-        path_experts=path_experts,
-        path_data=path_data,
-        exact_protection=exact_protection,
-    )
-    # Initialize the optimizer
-    optimizer = optim.Adam(value_net.parameters(), lr=lr, betas=betas)
-    # If resume training
-    first_epoch = False
-    if resume_training:
-        # load the state dicts of the optimizer and value_net
-        value_net, optimizer = load_training_param(value_net, optimizer, path_train)
-        first_epoch = True
-    # generate the test set
-    test_set_generators = load_create_test_set_dqn(n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max,
-                                                   Lambda_max, weighted, w_max, directed, size_test_data, path_test_data,
-                                                   batch_size, num_workers)
-
-    print("Number of parameters to train = %2d \n" % count_param_NN(value_net))
-
-    # While all the target nets are not trained
-    Budget_max = Omega_max + Phi_max + Lambda_max
-    while targets_experts.Budget_target <= Budget_max:
-
-        print("\n==========================================================================")
-        print("Training for Budget = %2d \n" % targets_experts.Budget_target)
-
-        # Load or Create the training and validation datasets
-        training_generator, val_generator = load_create_datasets_dqn(
-            size_train_data,
-            size_val_data,
-            batch_size,
-            num_workers,
-            n_free_min,
-            n_free_max,
-            d_edge_min,
-            d_edge_max,
-            Omega_max,
-            Phi_max,
-            Lambda_max,
-            weighted,
-            w_max,
-            directed,
-            targets_experts.Budget_target,
-            targets_experts.list_target_nets,
-            path_data,
-            solve_exact=False,
-            exact_protection=exact_protection,
-            batch_unroll=batch_unroll,
-        )
-        # Init the player
-        player = targets_experts.list_players[targets_experts.Budget_target-1]
-        # Loop over epochs
-        if first_epoch:
-            n_loops = n_epoch - n_epoch_already_trained
-            first_epoch = False
-        else:
-            n_loops = n_epoch
-        for epoch in tqdm(range(n_loops)):
-            # Training for all batches in the training set
-            for i_batch, batch_instances in enumerate(training_generator):
-                # Compute the approximate values
-                batch = batch_instances.G_torch.batch
-                mask_values = batch_instances.J.eq(0)[:, 0]
-                action_values = value_net(batch_instances.G_torch,
-                                          batch_instances.n_nodes,
-                                          batch_instances.Omegas,
-                                          batch_instances.Phis,
-                                          batch_instances.Lambdas,
-                                          batch_instances.Omegas_norm,
-                                          batch_instances.Phis_norm,
-                                          batch_instances.Lambdas_norm,
-                                          batch_instances.J,
-                                          )
-                action_values = action_values[mask_values]
-                batch = batch[mask_values]
-                # if it's the turn of the attacker
-                if player == 1:
-                    # we take the argmin
-                    _, actions = scatter_min(action_values, batch, dim=0)
-                else:
-                    # we take the argmax
-                    _ , actions = scatter_max(action_values, batch, dim=0)
-                values_approx = action_values.gather(0, actions)
-                # Init the optimizer
-                optimizer.zero_grad()
-                # Compute the loss of the batch
-                loss = torch.sqrt(torch.mean((values_approx[:, 0] - batch_instances.target[:, 0]) ** 2))
-                # Compute the loss on the Validation set
-                if count % update_experts == 0:
-                    targets_experts.test_update_target_nets(value_net, val_generator, test_set_generators)
-                # Update the parameters of the Value_net
-                loss.backward()
-                optimizer.step()
-                # Update the tensorboard
-                writer.add_scalar("Loss", float(loss), count)
-                writer.add_scalar("Loss validation best",
-                                  targets_experts.losses_validation_sets[targets_experts.Budget_target - 1],
-                                  count,
-                                  )
-                writer.add_scalar("Loss validation", targets_experts.loss_value_net, count)
-                for k in range(len(targets_experts.losses_test_set)):
-                    name_loss = 'Loss test budget ' + str(k + 1)
-                    writer.add_scalar(name_loss, float(targets_experts.losses_test_set[k]), count)
-                count += 1
-
-            # Print the information of the epoch
-            print(
-                " \n Budget target : %2d/%2d" % (targets_experts.Budget_target, Budget_max - 1),
-                " \n Epoch: %2d/%2d" % (epoch + 1, n_epoch),
-                " \n Loss of the current value net: %f" % float(loss),
-                " \n Loss val of the current value net: %f" % targets_experts.loss_value_net,
-                " \n Losses of the experts on val set: ", targets_experts.losses_validation_sets,
-                " \n Losses on test set : ", targets_experts.losses_test_set,
-            )
-            # Saves model
-            save_models(date_str, dict_args, value_net, optimizer, count, targets_experts)
-
-        # Update the target budget
-        targets_experts.Budget_target += 1
-
-
-def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target, n_time_instance_seen,
-                 eps_end, eps_decay, eps_start,
-                 dim_embedding, dim_values, dim_hidden, n_heads, n_att_layers, n_pool, alpha, p,
-                 n_free_min, n_free_max, d_edge_min, d_edge_max, Omega_max, Phi_max, Lambda_max, weighted,
-                 w_max=1, directed=False,
-                 num_workers=0, resume_training=False, path_train="", path_test_data=None,
-                 exact_protection=False, rate_display=200, batch_unroll=128):
-
-    """Train a neural network to solve the MCN problem either using Monte Carlo samples"""
+    """Train a DQN to solve the MCN problem"""
 
     # Gather the hyperparameters
     dict_args = locals()
@@ -978,9 +393,7 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
     n_max = n_free_max + Omega_max + Phi_max + Lambda_max
     max_budget = Omega_max + Phi_max + Lambda_max
     list_players = [2]*Lambda_max + [1]*Phi_max + [0]*Omega_max
-    # Compute the size of the memory and the rate of epoch over it
-    # depending on the number of time we want to 'see' each instance, the
-    # total number of episodes to generate and the batch size
+    # Compute the size of the memory
     size_memory = batch_size * n_time_instance_seen
     # Init the value net
     value_net = DQN(
@@ -1124,11 +537,9 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                     n_visited += n_free
                     count_memory += 1
 
-
-            # perform an epoch over the replay memory
             # if there is enough new instances in memory
             if count_memory > size_memory:
-                # create a list of randomly shuffled indices to sample batches from
+                # create a list of randomly shuffled indices to sample a batch from
                 memory_size = len(replay_memory_states)
                 id_batch = random.sample(range(memory_size), batch_size)
                 # gather the states, afterstates, actions and rewards
@@ -1227,3 +638,15 @@ def train_dqn_mc(batch_size, size_test_data, lr, betas, n_episode, update_target
                         " \n Loss of the current value net: %f" % float(loss),
                         " \n Losses on test set : ", losses_test,
                     )
+
+def solve_greedy_dqn(instance, value_net):
+    env = EnvironmentDQN([instance])
+    Omega = env.Omega
+    Lambda = env.Lambda
+    # Unroll the episode
+    while env.Budget >= 1:
+        action = take_action_deterministic_batch_dqn(value_net, env.player, env.batch_instance_torch)
+        env.step(action)
+        rewards = env.rewards
+    return Omega + Lambda + rewards[0]
+

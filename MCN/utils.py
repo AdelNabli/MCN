@@ -274,47 +274,7 @@ def generate_random_instance(n_free_min, n_free_max, d_edge_min, d_edge_max,
 def generate_random_batch_instance(batch_size, n_free_min, n_free_max, d_edge_min, d_edge_max,
                                    Omega_max, Phi_max, Lambda_max, Budget_target=np.nan,
                                    weighted=False, w_max=1, directed=False):
-    r"""Generate a random instance of the MCN problem corresponding
-    to the stage of the training we are in if Budget_target is defined.
-    Else, we generate a random instance of the MCN problem.
-    The parameters of the distribution of instances are
-    the number of free nodes in the graph (i.e nodes that won't
-    be defended nor attacked) and the maximum budget we allow
-    for each player (given that an instance of MCN should have
-    at least one unit of budget reserved for the attacker).
-
-    Parameters:
-    ----------
-    n_free_min: int,
-                the minimal number of free nodes
-                in the graph we will generate
-    n_free_max: int,
-                the maximal number of free nodes
-    d_edge_min: float \in [0,1],
-                minimal edge density of the graphs considered
-    d_edge_max: float \in [0,1],
-                maximal edge density of the graphs considered
-    Omega_max: int,
-               the maximal vaccination budget
-    Phi_max: int,
-             the maximal attack budget
-             must be > 0, otherwise there is no MCN problem
-    Lambda_max: int,
-                the maximal protection budget
-    Budget_target: int,
-                   the total budget we are considering
-                   at this stage of the training procedure
-                   (\in [1, Omega_max+Phi_max+Lambda_max])
-    weighted: bool,
-              whether to create weights for the nodes or not
-    w_max: int,
-           the maximum weight a node can have
-    directed: bool,
-              whether or not the graph is directed
-
-    Returns:
-    -------
-    instance: Instance object"""
+    r"""Generate a random batch (list) of instances of the MCN problem. """
 
     # if we generate an instance for the training procedure
     if Budget_target is not np.nan:

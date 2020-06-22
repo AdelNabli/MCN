@@ -1,11 +1,11 @@
 import os
 import pickle
 import numpy as np
-import networkx as nx
 from tqdm import tqdm
 from MCN.utils import Instance
 from MCN.MCN_curriculum.data import generate_test_set
 from MCN.solve_mcn import solve_mcn
+from MCN.MCN_curriculum.train_dqn import solve_greedy_dqn
 
 
 def opt_gap(list_exact, list_approx):
@@ -47,7 +47,7 @@ def print_opt_gap(Omega_max, Phi_max, Lambda_max, og_mean, og_budget, og_player)
 
 
 def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_protection=False,
-                           path_test_data=None, return_computation=False, **kwargs):
+                           path_test_data=None, return_computation=False, DQN=False, **kwargs):
 
     """Compute the optimality gap on a test set of exactly solved instances.
     print the average optimality over all the test sets,
@@ -83,10 +83,13 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
         budget_values_heuristic.append([])
         # Iterate over the instances in the dataset
         for instance in dataset:
-            value_heuristic, D_heur, I_heur, P_heur = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
-                                                                J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
-                                                                Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
-                                                                exact_protection=exact_protection)
+            if not DQN:
+                value_heuristic, D_heur, I_heur, P_heur = solve_mcn(instance.G, instance.Omega, instance.Phi, instance.Lambda,
+                                                                    J=instance.J, Omega_max=Omega_max, Phi_max=Phi_max,
+                                                                    Lambda_max=Lambda_max, exact=False, list_experts=list_experts,
+                                                                    exact_protection=exact_protection)
+            else:
+                value_heuristic = solve_greedy_dqn(instance, list_experts[0])
             value_exact = instance.value
             # add the values to memory
             budget_values_true[k].append(value_exact)
@@ -105,6 +108,9 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
     # Compute the player's optimality gap
     for player in [0,1,2]:
         opt_gap_player.append(opt_gap(player_values_true[player], player_values_heuristic[player]))
+        # print the approx ratio
+        mean_ratio = approx_ratio(player_values_true[player], player_values_heuristic[player])
+        print('Player : ', player, 'Approx Ratio : ', mean_ratio)
     # Compute the average optimality gap over all datasets
     # doesn't take into account the values already solved exactly in the heuristic method
     # (e.g for Lambda = 1 if exact_protection=False, the instances are solved exactly)
@@ -112,8 +118,21 @@ def compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts, exact_p
     tot_val_approx = [value for k in range(first_budget, len(test_set)) for value in budget_values_heuristic[k]]
     tot_val_true = [value for k in range(first_budget, len(test_set)) for value in budget_values_true[k]]
     opt_gap_mean = opt_gap(tot_val_true, tot_val_approx)
+    approx_ratio_mean = approx_ratio(tot_val_true, tot_val_approx)
+    print('Mean Approx Ratio : ', approx_ratio_mean)
 
     print_opt_gap(Omega_max, Phi_max, Lambda_max, opt_gap_mean, opt_gap_budget, opt_gap_player)
 
     if return_computation:
         return opt_gap_mean, opt_gap_budget, opt_gap_player
+
+
+def approx_ratio(exact, heur):
+    exact_p = np.array([exact])
+    heur_p = np.array([heur])
+    exact_denom = np.where(exact_p == 0, 1, exact_p)
+    heur_denom = np.where(heur_p == 0, 1, heur_p)
+    c = np.concatenate((exact_denom / heur_denom, heur_denom / exact_denom), axis=0)
+    ratio = np.max(c, axis=0)
+    mean_ratio = np.mean(ratio)
+    return mean_ratio

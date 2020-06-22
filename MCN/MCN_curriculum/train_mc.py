@@ -19,7 +19,7 @@ from MCN.utils import (
 )
 from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
 from MCN.MCN_curriculum.environment import Environment
-from MCN.MCN_curriculum.value_nn import ValueNet
+from MCN.MCN_curriculum.neural_networks import ValueNet
 from MCN.test_performances.optimality_gap import compute_optimality_gap
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,7 +33,7 @@ def train_value_net_mc(batch_size, size_test_data, lr, betas, n_episode, update_
                        num_workers=0, resume_training=False, path_train="", path_test_data=None,
                        exact_protection=False, rate_display=200, batch_unroll=None):
 
-    """Train a neural network to solve the MCN problem either using Monte Carlo samples"""
+    """Train a neural network to solve the MCN problem using Monte Carlo samples"""
 
     # Gather the hyperparameters
     dict_args = locals()
