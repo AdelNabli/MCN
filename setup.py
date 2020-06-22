@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="MCN",
-    version=0.31,
+    version=0.32,
     packages=find_packages(),
     author="Adel Nabli",
     install_requires=[
