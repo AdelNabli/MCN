@@ -31,15 +31,17 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
 
     if color_type == "fabulous":
 
-        # Draw the graph with lots of colors because it's FA-BU-LOUS
-        nx.draw(
-            graph,
-            with_labels=True,
-            font_weight="bold",
-            node_color=range(n_nodes),
-            edge_color="magenta",
-            cmap=plt.cm.hsv,
-        )
+        # Draw the graph with a colormap
+        nx.draw_spring(graph,
+                       with_labels=True,
+                       node_size=600,
+                       node_color=np.array(list(graph.nodes())),
+                       cmap='viridis_r',
+                       alpha=1.0,
+                       edge_color='gray',
+                       arrows=True,
+                       width=2,
+                       font_size=15)
 
     elif color_type == "DAD":
 
@@ -56,13 +58,14 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
         for ids in id_colors:
             node_colors.append(colors[int(ids)])
 
-        nx.draw(
-            graph,
-            with_labels=True,
-            font_weight="bold",
-            node_color=node_colors,
-            edge_color="magenta",
-        )
+        nx.draw_spring(graph,
+                       with_labels=True,
+                       node_size=600,
+                       node_color=node_colors,
+                       edge_color='gray',
+                       arrows=True,
+                       width=2,
+                       font_size=15)
 
     plt.show()
 
