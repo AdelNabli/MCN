@@ -3,9 +3,9 @@ import pickle
 import numpy as np
 from tqdm import tqdm
 from MCN.utils import Instance
-from MCN.MCN_curriculum.data import generate_test_set
+from MCN.MCN_heur.data import generate_test_set
 from MCN.solve_mcn import solve_mcn
-from MCN.MCN_curriculum.train_dqn import solve_greedy_dqn
+from MCN.MCN_heur.train_dqn import solve_greedy_dqn
 
 
 def opt_gap(list_exact, list_approx):
