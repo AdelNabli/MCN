@@ -17,9 +17,9 @@ from MCN.utils import (
     instance_to_torch,
     compute_loss_test,
 )
-from MCN.MCN_curriculum.data import collate_fn, load_create_test_set
-from MCN.MCN_curriculum.environment import Environment
-from MCN.MCN_curriculum.neural_networks import ValueNet
+from MCN.MCN_heur.data import collate_fn, load_create_test_set
+from MCN.MCN_heur.environment import Environment
+from MCN.MCN_heur.neural_networks import ValueNet
 from MCN.test_performances.optimality_gap import compute_optimality_gap
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

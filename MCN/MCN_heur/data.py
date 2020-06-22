@@ -5,7 +5,7 @@ from tqdm import tqdm
 from torch_geometric.data import Batch
 from torch.utils.data import Dataset, DataLoader
 from MCN.utils import generate_random_instance, generate_random_batch_instance, instance_to_torch, InstanceTorch
-from MCN.MCN_curriculum.mcn_heuristic import solve_mcn_heuristic_batch
+from MCN.MCN_heur.mcn_heuristic import solve_mcn_heuristic_batch
 from MCN.solve_mcn import solve_mcn
 
 

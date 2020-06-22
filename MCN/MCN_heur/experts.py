@@ -4,8 +4,8 @@ import os
 import pickle
 from torch.utils.data import DataLoader
 from MCN.utils import load_saved_experts, compute_loss_test
-from MCN.MCN_curriculum.neural_networks import ValueNet
-from MCN.MCN_curriculum.data import MCNDataset, collate_fn
+from MCN.MCN_heur.neural_networks import ValueNet
+from MCN.MCN_heur.data import MCNDataset, collate_fn
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

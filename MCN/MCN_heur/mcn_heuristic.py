@@ -1,5 +1,5 @@
 import numpy as np
-from MCN.MCN_curriculum.environment import Environment
+from MCN.MCN_heur.environment import Environment
 from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player, Instance
 from MCN.MCN_exact.attack_protect import AP
 from MCN.MCN_exact.defender import solve_defender

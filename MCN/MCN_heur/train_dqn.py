@@ -3,14 +3,14 @@ import pickle
 from tqdm import tqdm
 import random
 import numpy as np
-from MCN.MCN_curriculum.neural_networks import DQN
+from MCN.MCN_heur.neural_networks import DQN
 from MCN.solve_mcn import solve_mcn
 import torch
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from datetime import datetime
 from torch_scatter import scatter_min, scatter_max
-from MCN.MCN_curriculum.data import collate_fn, MCNDataset, DataLoader
+from MCN.MCN_heur.data import collate_fn, MCNDataset, DataLoader
 from MCN.utils import (
     new_graph,
     get_player,
