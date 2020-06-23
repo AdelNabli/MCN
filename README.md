@@ -13,7 +13,7 @@ python -m pip install git+https://github.com/AdelNabli/MCN/
 * [matplotlib](https://matplotlib.org/) (only used for plotting the graphs)
 * [pandas](https://pandas.pydata.org/pandas-docs/stable/index.html) (only used to display tables of results)
 * [pytorch](https://pytorch.org/)
-* [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/) (To use our pre-trained models, a version v1.4.x is necessary as changes in the source code of some GNN happened in v1.5.0)
+* [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/) (To use our pre-trained models, a version v1.4.x is necessary as changes in the source code of some *Graph Neural Networks* happened in v1.5.0)
 * [tensorboardX](https://tensorboardx.readthedocs.io/en/latest/index.html)
 * [tqdm](https://tqdm.github.io/)
 * [cplex](https://www.ibm.com/analytics/cplex-optimizer) (only necessary if the exact algorithm is used)
