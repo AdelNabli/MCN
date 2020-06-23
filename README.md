@@ -12,7 +12,7 @@ python -m pip install git+https://github.com/AdelNabli/MCN/
 * [networkx](https://networkx.github.io/)
 * [matplotlib](https://matplotlib.org/) (only used for plotting the graphs)
 * [pytorch](https://pytorch.org/)
-* [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/)
+* [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/) (if you want to use our pre-trained models, a version v.1.4.x is necessary)
 * [tensorboardX](https://tensorboardx.readthedocs.io/en/latest/index.html)
 * [tqdm](https://tqdm.github.io/)
 * [cplex](https://www.ibm.com/analytics/cplex-optimizer) (only necessary if the exact algorithm is used)
