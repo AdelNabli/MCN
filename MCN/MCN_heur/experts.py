@@ -52,7 +52,19 @@ class TargetExperts(object):
         # If pre-trained experts are available
         if path_experts is not None:
             # load them
-            list_trained_experts = load_saved_experts(path_experts)
+            list_trained_experts = load_saved_experts(path_experts,
+                                                      dim_input=self.dim_input,
+                                                      dim_embedding=self.dim_embedding,
+                                                      dim_values=self.dim_values,
+                                                      dim_hidden=self.dim_hidden,
+                                                      n_heads=self.n_heads,
+                                                      n_att_layers=self.n_att_layers,
+                                                      n_pool=self.n_pool,
+                                                      K=self.K,
+                                                      alpha=self.alpha,
+                                                      p=0,
+                                                      weighted=self.weighted,
+                                                      )
             Budget_trained = len(list_trained_experts)
             # update the TargetExperts object
             self.list_target_nets[:Budget_trained] = list_trained_experts

@@ -1,4 +1,3 @@
-import os
 import torch
 import random
 import numpy as np
@@ -20,7 +19,6 @@ from MCN.utils import (
 from MCN.MCN_heur.data import collate_fn, load_create_test_set
 from MCN.MCN_heur.environment import Environment
 from MCN.MCN_heur.neural_networks import ValueNet
-from MCN.test_performances.optimality_gap import compute_optimality_gap
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -267,19 +265,3 @@ def train_value_net_mc(batch_size, size_test_data, lr, betas, n_episode, update_
                         " \n Loss of the current value net: %f" % float(loss),
                         " \n Losses on test set : ", losses_test,
                     )
-
-    # Compute how the neural networks we trained perform on the test set
-    if size_test_data > 0:
-        if path_test_data is None:
-            # the test data has been generated before the training
-            folder_name = 'test_data'
-            if weighted:
-                folder_name += '_w'
-            if directed:
-                folder_name += '_dir'
-            path_test_data = os.path.join('data', folder_name)
-        value_net_bis.load_state_dict(value_net.state_dict())
-        value_net_bis.eval()
-        list_experts = [value_net_bis] * max_budget
-        compute_optimality_gap(Omega_max, Phi_max, Lambda_max, list_experts,
-                               exact_protection=exact_protection, path_test_data=path_test_data)

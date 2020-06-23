@@ -9,6 +9,8 @@ from torch_scatter import scatter_max, scatter_min
 from torch_geometric.data import Batch
 from torch_geometric.utils import from_networkx
 from torch_geometric.transforms import LocalDegreeProfile
+from MCN.MCN_heur.neural_networks import ValueNet
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -28,6 +30,7 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
     # Arbitrary formula to adapt the size of the image displayed to the size of the graph
     size = int(9 * np.log(n_nodes) / np.log(50))
     plt.figure(1, figsize=(size, size))
+    is_directed = False in [(v, u) in graph.edges() for (u, v) in graph.edges()]
 
     if color_type == "fabulous":
 
@@ -39,9 +42,10 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
                        cmap='viridis_r',
                        alpha=1.0,
                        edge_color='gray',
-                       arrows=True,
+                       arrows=is_directed,
                        width=2,
-                       font_size=15)
+                       font_size=15,
+                       font_color='white')
 
     elif color_type == "DAD":
 
@@ -63,9 +67,10 @@ def plot_graph(graph, color_type='fabulous', id_colors=None):
                        node_size=600,
                        node_color=node_colors,
                        edge_color='gray',
-                       arrows=True,
+                       arrows=is_directed,
                        width=2,
-                       font_size=15)
+                       font_size=15,
+                       font_color='white')
 
     plt.show()
 
@@ -820,11 +825,11 @@ def save_models(date_str, dict_args, value_net, optimizer, count, targets_expert
         for target_net in targets_experts.list_target_nets:
             if target_net is not None:
                 name = os.path.join(path,"expert_" + str(count) + ".pt")
-                torch.save(target_net, name)
+                torch.save({"model_state_dict": target_net.state_dict()}, name)
                 count += 1
 
 
-def load_saved_experts(path):
+def load_saved_experts(path, **kwargs):
     """Load all the saved experts models from a directory and
     and returns them as a list of pytorch modules
 
@@ -842,9 +847,12 @@ def load_saved_experts(path):
         list_experts = [None] * (max_budget + 1)
         for f in list_files:
             if '.pt' in f:
+                expert = ValueNet(**kwargs).to(device)
                 expert_path = os.path.join(path, f)
                 # load the model
-                expert = torch.load(expert_path)
+                checkpoint = torch.load(expert_path)
+                expert.load_state_dict(checkpoint['model_state_dict'])
+                #expert = torch.load(expert_path)
                 expert.eval()
                 # get the expert's budget
                 budget = int(re.findall(r'([0-9]+)\.pt', f)[0])

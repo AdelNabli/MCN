@@ -1,10 +1,10 @@
 import numpy as np
 from MCN.MCN_heur.environment import Environment
-from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player, Instance
+from MCN.utils import get_target_net, take_action_deterministic, take_action_deterministic_batch, get_player, Instance, plot_graph
 from MCN.MCN_exact.attack_protect import AP
 from MCN.MCN_exact.defender import solve_defender
 
-def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protection):
+def original_names_actions_episode(actions_episode, J, Phi, Lambda, exact_protection):
 
     """Given the budgets and the list of ids of the actions taken during the episode,
     find the ids of the actions in the original graph and returns the sets D, I, P
@@ -14,6 +14,8 @@ def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protectio
     actions_episode: list,
                      the actions taken by the experts during the episode
                      must be "first action taken" at position 0
+    J: list,
+       the already infected nodes
     Phi, Lambda: int
     exact_protection: bool,
                       whether or not the exact algorithm was used for the protection phase
@@ -38,6 +40,9 @@ def original_names_actions_episode(actions_episode, Phi, Lambda, exact_protectio
         ]
         all_actions[:k] = previous_actions
 
+    for infected in J:
+        all_actions = [action if action < infected else action + 1
+                       for action in all_actions]
     return (
         all_actions[Lambda + Phi :],
         all_actions[Lambda:Lambda + Phi],
@@ -107,7 +112,7 @@ def solve_mcn_heuristic(list_experts, G, Omega, Phi, Lambda, Omega_max, Phi_max,
             env.step([action])
             val_actions += np.sum(env.action_values)
 
-        D, I, P = original_names_actions_episode(actions_episode, Phi, Lambda, exact_protection)
+        D, I, P = original_names_actions_episode(actions_episode, J, Phi, Lambda, exact_protection)
         value += val_actions
 
         return (value, D, I, P)

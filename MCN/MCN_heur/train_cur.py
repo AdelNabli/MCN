@@ -1,11 +1,9 @@
-import os
 import torch
 import torch.optim as optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 from datetime import datetime
 from MCN.utils import save_models, load_training_param, count_param_NN
-from MCN.test_performances.optimality_gap import compute_optimality_gap
 from MCN.MCN_heur.neural_networks import ValueNet
 from MCN.MCN_heur.experts import TargetExperts
 from MCN.MCN_heur.data import load_create_datasets, load_create_test_set
@@ -253,16 +251,3 @@ def train_value_net(batch_size, size_train_data, size_val_data, size_test_data, 
 
         # Update the target budget
         targets_experts.Budget_target += 1
-
-    # Compute how the neural networks we trained perform on the test set
-    if size_test_data > 0:
-        if path_test_data is None:
-            # the test data has been generated before the training
-            folder_name = 'test_data'
-            if weighted:
-                folder_name += '_w'
-            if directed:
-                folder_name += '_dir'
-            path_test_data = os.path.join('data', folder_name)
-        compute_optimality_gap(Omega_max, Phi_max, Lambda_max, targets_experts.list_target_nets,
-                               exact_protection=exact_protection, path_test_data=path_test_data)

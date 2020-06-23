@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_geometric.nn import GlobalAttention, APPNP, global_add_pool, GATConv, BatchNorm
-from torch_scatter import scatter
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
