@@ -1,5 +1,5 @@
 # MCN
-Learning to solve the Multilevel Critical Node (MCN) Problem. Implementation of the paper [Curriculum learning for multilevel budgeted combinatorial problems]( https://arxiv.org/pdf/2007.03151.pdf )
+Learning to solve the Multilevel Critical Node (MCN) Problem. Implementation of the paper [Curriculum learning for multilevel budgeted combinatorial problems]( https://arxiv.org/pdf/2007.03151.pdf ) .
 
 
 ## Setup
@@ -27,7 +27,7 @@ There are 3 main tasks supported:
 An example of how to perform each of these tasks is given in the [Notebook](https://github.com/AdelNabli/MCN/blob/master/Usages.ipynb)
 
 ## Citation
-```
+```bibtex
 @article{nabli2020curriculum,
     title={Curriculum learning for multilevel budgeted combinatorial problems},
     author={Adel Nabli and Margarida Carvalho},
