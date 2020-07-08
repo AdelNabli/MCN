@@ -16,7 +16,7 @@ python -m pip install git+https://github.com/AdelNabli/MCN/
 * [pytorch geometric](https://pytorch-geometric.readthedocs.io/en/latest/) (To use our pre-trained models, a version v1.4.x is necessary as changes in the source code of some *Graph Neural Networks* happened in v1.5.0)
 * [tensorboardX](https://tensorboardx.readthedocs.io/en/latest/index.html)
 * [tqdm](https://tqdm.github.io/)
-* [cplex](https://www.ibm.com/analytics/cplex-optimizer) (only necessary if the exact algorithm is used)
+* [cplex](https://www.ibm.com/analytics/cplex-optimizer) (only necessary if the exact solver is used)
 
 ## Usage
 There are 3 main tasks supported:
