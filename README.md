@@ -1,5 +1,5 @@
 # MCN
-Learning to solve the Multilevel Critical Node (MCN) Problem. Implementation of the paper [Curriculum learning for multilevel budgeted combinatorial problems]( https://arxiv.org/pdf/2007.03151.pdf ) .
+Learning to solve the Multilevel Critical Node (MCN) Problem. Implementation of NeurIPS 2020 paper [Curriculum learning for multilevel budgeted combinatorial problems]( https://proceedings.neurips.cc/paper_files/paper/2020/file/4eb7d41ae6005f60fe401e56277ebd4e-Paper.pdf) .
 
 
 ## Setup
@@ -28,11 +28,15 @@ An example of how to perform each of these tasks is given in the [Notebook](http
 
 ## Citation
 ```bibtex
-@article{nabli2020curriculum,
-    title={Curriculum learning for multilevel budgeted combinatorial problems},
-    author={Adel Nabli and Margarida Carvalho},
-    year={2020},
-    journal={arXiv preprint arXiv:2007.03151}
+@inproceedings{NEURIPS2020_4eb7d41a,
+ author = {Nabli, Adel and Carvalho, Margarida},
+ booktitle = {Advances in Neural Information Processing Systems},
+ editor = {H. Larochelle and M. Ranzato and R. Hadsell and M.F. Balcan and H. Lin},
+ pages = {7044--7056},
+ publisher = {Curran Associates, Inc.},
+ title = {Curriculum learning for multilevel budgeted combinatorial problems},
+ volume = {33},
+ year = {2020}
 }
 ```
 
